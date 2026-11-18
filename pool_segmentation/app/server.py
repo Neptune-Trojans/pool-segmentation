@@ -66,8 +66,8 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
         """The frame, its labels (empty ones if the model has not labeled it yet) and the model's original labels."""
         frame = labeled_frame(name)
         labels = dataset.labels(name) or dataset.empty_labels(frame)
-        sam3 = dataset.sam3(name)
-        return {"frame": asdict(frame), "labels": labels.to_dict(), "sam3": sam3.to_dict() if sam3 else None}
+        auto = dataset.auto(name)
+        return {"frame": asdict(frame), "labels": labels.to_dict(), "auto": auto.to_dict() if auto else None}
 
     @app.get("/api/labels/{name}/image")
     def frame_image(name: str) -> FileResponse:

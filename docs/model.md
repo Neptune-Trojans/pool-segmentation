@@ -3,9 +3,9 @@
 _Agreed: 2026-11-16 (in swim-analytics; moved to this repo 2026-11-18). Status: training built (water / other);
 swim-analytics' pool stage runs it on every frame of its videos._
 
-A small, fast network that finds the pool's **water** in every frame. It is trained on the frames checked on the Labels
-page (`docs/labeling.md`). It replaces SAM3-LiteText (about 1.7 s per frame) with about 25 ms per frame. Lane ropes
-come later as a third class. The model choice is explained in `research/pool-model-training.md`.
+A small, fast network that finds the pool's **water** in every frame (about 25 ms per frame). It is trained on the
+frames checked on the Labels page (`docs/labeling.md`), and labels the water of new frames for the next round
+(`labeling auto`). Lane ropes come later as a third class. The model choice is explained in `research/pool-model-training.md`.
 
 ## Classes
 
@@ -121,7 +121,7 @@ an M4 Pro.
 
 ## Next
 
-- Run it on whole videos and look at where it fails. Add frames like those (pick, SAM3, check), train again.
+- Run it on whole videos and look at where it fails. Add frames like those (pick, auto, check), train again.
 - swim-analytics' `pool` stage runs the newest model on every frame (its `pool.model` setting: a run folder name,
   or `latest`); its filtering drops people outside the water. On IMG_5198 (a pool not in the training frames) it
   misses a beige-floored shallow area: frames from there would fix it.

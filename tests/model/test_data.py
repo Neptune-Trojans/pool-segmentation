@@ -40,7 +40,7 @@ def test_input_keeps_the_frame_shape(frame, expected):
 
 def test_only_checked_frames_train(tmp_path, make_dataset):
     dataset = make_dataset(tmp_path / "a", {"IMG_1": 2})
-    make_dataset(tmp_path / "a", {"IMG_9": 1}, status="sam3")  # same folder: one more frame, not checked
+    make_dataset(tmp_path / "a", {"IMG_9": 1}, status="auto")  # same folder: one more frame, not checked
     assert [f.name for f, _ in checked_frames(dataset)] == ["IMG_1_000000", "IMG_1_000060"]
 
 

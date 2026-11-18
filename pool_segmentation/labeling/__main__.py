@@ -1,7 +1,7 @@
 """Make training data for the pool segmentation model (docs/labeling.md). Run in the folder that holds the data:
 
     python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames (one every 2 s, at most 25 per video)
-    python -m pool_segmentation.labeling auto                     # 2. first labels from SAM3-LiteText (about 2 s per frame)
+    python -m pool_segmentation.labeling auto                     # 2. first labels (water) from the newest trained model
     python -m pool_segmentation.app                               # 3. check and fix them on the Labels page
     python -m pool_segmentation.labeling masks                    # 4. training masks from the checked labels
     python -m pool_segmentation.labeling status                   # how many frames are checked
@@ -26,8 +26,10 @@ def main() -> None:
     p.add_argument("--every", type=float, default=2.0, help="Seconds between picked frames (default 2)")
     p.add_argument("--max-per-video", type=int, default=25, help="At most this many frames per video (default 25)")
 
-    a = commands.add_parser("auto", help="First labels from SAM3-LiteText for frames that have none")
+    a = commands.add_parser("auto", help="First labels (water) from a trained pool model for frames that have none")
     a.add_argument("--redo", action="store_true", help="Label every frame again (checked labels are kept)")
+    a.add_argument("--model", default="latest", help="Training run folder name, or latest (default: the newest)")
+    a.add_argument("--models", default="data/models/pool", help="Folder of the training runs (default: data/models/pool)")
 
     m = commands.add_parser("masks", help="Training masks (PNG) from the checked labels")
     m.add_argument("--all", action="store_true", help="Also frames not checked yet")
@@ -39,7 +41,7 @@ def main() -> None:
     if args.command == "pick":
         pick(dataset, args.videos, args.every, args.max_per_video)
     elif args.command == "auto":
-        auto_label(dataset, redo=args.redo)
+        auto_label(dataset, redo=args.redo, model=args.model, models_dir=args.models)
     elif args.command == "masks":
         write_masks(dataset, include_unreviewed=args.all)
     else:

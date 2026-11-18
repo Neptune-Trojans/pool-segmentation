@@ -11,10 +11,10 @@ find the lanes. Lane ropes as a second class are planned.
 
 ```bash
 pip install pool-segmentation                     # the model
-pip install "pool-segmentation[app,sam3,train]"   # and all tools
+pip install "pool-segmentation[app,train]"   # and all tools
 ```
 
-Extras: `app` the Labels page, `sam3` first labels from SAM3-LiteText, `train` TensorBoard, `dev` the tests.
+Extras: `app` the Labels page, `train` TensorBoard, `dev` the tests.
 
 ## Use a trained model
 
@@ -34,13 +34,15 @@ Run these in the folder that holds your data; paths are relative to it (`data/la
 
 ```bash
 python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames: one every 2 s, at most 25 per video
-python -m pool_segmentation.labeling auto                     # 2. first labels from SAM3-LiteText (about 2 s per frame)
+python -m pool_segmentation.labeling auto                     # 2. first labels (water) from your newest trained model
 python -m pool_segmentation.app                               # 3. check and fix them: http://127.0.0.1:8001
 python -m pool_segmentation.model train                       # 4. train on the checked frames (about 5 min, M4 Pro)
 ```
 
-About 100 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. Details:
-[docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how SAM3's labels are made, the Labels page) and
+The first time there is no trained model: skip step 2 and draw the water and ropes on the Labels page. About 100
+checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After that, each round's model
+labels the next frames' water, and you only fix it and draw the ropes. Details:
+[docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how the model's first labels are made, the Labels page) and
 [docs/model.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/model.md) (network, training, results).
 
 The Labels page can also be shown inside another FastAPI app, under a path of its own:
@@ -59,7 +61,7 @@ pool_segmentation/
   polygons.py      # water mask -> outline polygons
   video.py         # read a video's frames
   model/           # the network: network.py, data.py, train.py, predict.py, runs.py (python -m pool_segmentation.model)
-  labeling/        # training data: frames, labels, SAM3 labels, shapes (python -m pool_segmentation.labeling)
+  labeling/        # training data: frames, labels, the model's first labels, shapes (python -m pool_segmentation.labeling)
   app/             # the Labels page: server.py + static/ (python -m pool_segmentation.app)
 docs/              # model.md, labeling.md
 tests/             # same layout as pool_segmentation/
@@ -69,7 +71,7 @@ tests/             # same layout as pool_segmentation/
 
 ```bash
 git clone https://github.com/Neptune-Trojans/pool-segmentation.git && cd pool-segmentation
-python -m venv .venv && .venv/bin/pip install -e ".[app,dev,sam3,train]"
+python -m venv .venv && .venv/bin/pip install -e ".[app,dev,train]"
 .venv/bin/python -m pytest                    # all tests (the browser tests need Chrome)
 .venv/bin/python -m pytest -m "not browser"   # without them
 ```
@@ -78,5 +80,4 @@ python -m venv .venv && .venv/bin/pip install -e ".[app,dev,sam3,train]"
 
 ## License
 
-MIT ([LICENSE](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/LICENSE)). SAM3-LiteText, used for first labels, is downloaded from Hugging Face under its own
-license.
+MIT ([LICENSE](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/LICENSE)).

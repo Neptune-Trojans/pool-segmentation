@@ -40,7 +40,7 @@ def write_test_labels(dataset: Dataset) -> None:
     dataset.images.mkdir(parents=True)
     for f in frames:
         cv2.imwrite(str(dataset.image_path(f.name)), np.full((HEIGHT, WIDTH, 3), 180, np.uint8))
-    dataset.save_sam3(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=WIDTH, height=HEIGHT,
+    dataset.save_auto(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=WIDTH, height=HEIGHT,
                                   water=[[(20, 100), (620, 100), (620, 340), (20, 340)]],
                                   ropes=[[(40, 196), (600, 178), (600, 182), (40, 204)]], source="test"))
 
@@ -220,7 +220,7 @@ def test_drag_save_and_add_a_rope(chrome, server):
     assert chrome.wait_for("document.getElementById('message').textContent", lambda t: t.startswith("Saved")) == "Saved as fixed."
     saved = dataset.labels(LABEL_A)
     assert saved.status == "fixed" and abs(saved.ropes[0][0][1] - 236) < 1.5
-    assert dataset.sam3(LABEL_A).ropes[0][0] == (40, 196)  # the model's labels stay
+    assert dataset.auto(LABEL_A).ropes[0][0] == (40, 196)  # the model's labels stay
 
     # + Rope: click dots around it; each dot connects to the last; a click on the first dot closes it
     chrome.key("r", 82)

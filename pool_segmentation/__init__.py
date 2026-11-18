@@ -8,7 +8,7 @@
 
 Parts:
     model/      the network: training (python -m pool_segmentation.model train) and prediction
-    labeling/   training data: pick frames, first labels from SAM3 (python -m pool_segmentation.labeling)
+    labeling/   training data: pick frames, first labels from a trained model (python -m pool_segmentation.labeling)
     app/        the Labels page: check and fix the labels in the browser (python -m pool_segmentation.app)
 """
 

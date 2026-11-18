@@ -24,9 +24,9 @@ def setup(tmp_path):
     dataset.images.mkdir(parents=True)
     for f in frames:
         cv2.imwrite(str(dataset.image_path(f.name)), np.zeros((60, 100, 3), np.uint8))
-    dataset.save_sam3(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=100, height=60,
+    dataset.save_auto(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=100, height=60,
                                   water=[[(0, 20), (99, 20), (99, 59), (0, 59)]], ropes=[[(0, 38), (99, 34), (99, 36), (0, 42)]],
-                                  source="sam3-litetext-s0"))
+                                  source="pool-unet 20261116-224516"))
     client = TestClient(create_app(dataset.root), base_url="http://127.0.0.1")
     return client, dataset
 
@@ -37,8 +37,8 @@ def test_lists_frames_with_their_status(setup):
     listing = client.get("/api/labels").json()
 
     assert [(f["name"], f["status"], f["water"], f["ropes"]) for f in listing["frames"]] == [
-        ("IMG_1_000010", "sam3", 1, 1), ("IMG_1_000040", "no labels", 0, 0)]
-    assert listing["counts"] == {"no labels": 1, "sam3": 1, "fixed": 0, "accepted": 0}
+        ("IMG_1_000010", "auto", 1, 1), ("IMG_1_000040", "no labels", 0, 0)]
+    assert listing["counts"] == {"no labels": 1, "auto": 1, "fixed": 0, "accepted": 0}
     assert listing["classes"] == {"0": "other", "1": "water", "2": "lane rope"}
 
 
@@ -49,9 +49,9 @@ def test_frame_labels_and_image(setup):
 
     assert data["frame"] == {"name": "IMG_1_000010", "video": "data/input/IMG_1.MOV", "frame_idx": 10, "width": 100, "height": 60}
     assert data["labels"]["water"] == WATER and data["labels"]["ropes"] == ROPES
-    assert data["sam3"]["ropes"] == ROPES
+    assert data["auto"]["ropes"] == ROPES
     unlabeled = client.get("/api/labels/IMG_1_000040").json()
-    assert unlabeled["labels"]["water"] == [] and unlabeled["sam3"] is None
+    assert unlabeled["labels"]["water"] == [] and unlabeled["auto"] is None
     image = client.get("/api/labels/IMG_1_000010/image")
     assert image.status_code == 200 and image.headers["content-type"] == "image/jpeg"
 
@@ -66,8 +66,8 @@ def test_save_fixed_labels(setup):
     assert response.json()["counts"]["fixed"] == 1
     saved = dataset.labels("IMG_1_000010")
     assert (saved.status, saved.ropes, saved.source) == ("fixed", [[(0, 39), (99, 32), (99, 34), (0, 43), (0, 41)]],
-                                                         "sam3-litetext-s0")
-    assert dataset.sam3("IMG_1_000010").ropes == [[(0, 38), (99, 34), (99, 36), (0, 42)]]  # the model's stay as they were
+                                                         "pool-unet 20261116-224516")
+    assert dataset.auto("IMG_1_000010").ropes == [[(0, 38), (99, 34), (99, 36), (0, 42)]]  # the model's stay as they were
 
 
 def test_a_frame_without_model_labels_can_be_labeled_by_hand(setup):

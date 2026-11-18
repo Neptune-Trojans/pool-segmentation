@@ -12,7 +12,7 @@ def labels(**changes):
 
 
 def test_round_trip(tmp_path):
-    original = labels(status="fixed", source="sam3-litetext-s0")
+    original = labels(status="fixed", source="pool-unet 20261116-224516")
     original.to_json(tmp_path / "x.json")
 
     assert FrameLabels.from_json(tmp_path / "x.json") == original

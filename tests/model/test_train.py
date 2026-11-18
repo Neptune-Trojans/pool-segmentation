@@ -29,7 +29,7 @@ def test_a_short_training_run_saves_a_model_that_predicts(dataset, tmp_path):
 
 
 def test_training_needs_checked_frames(tmp_path, make_dataset):
-    dataset = make_dataset(tmp_path / "pool", {"IMG_1": 3}, status="sam3")
+    dataset = make_dataset(tmp_path / "pool", {"IMG_1": 3}, status="auto")
     with pytest.raises(ValueError, match="0 checked frames"):
         train(dataset.root, tmp_path / "models", epochs=1, pretrained=False, device="cpu", workers=0)
 

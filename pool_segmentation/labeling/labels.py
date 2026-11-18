@@ -16,8 +16,8 @@ import numpy as np
 CLASSES = {0: "other", 1: "water", 2: "lane rope"}
 OTHER, WATER, ROPE = 0, 1, 2
 
-# sam3: made by the model, not looked at yet; fixed: corrected by hand; accepted: the model's labels were right
-STATUSES = ("sam3", "fixed", "accepted")
+# auto: made by the model, not looked at yet; fixed: corrected by hand; accepted: the model's labels were right
+STATUSES = ("auto", "fixed", "accepted")
 REVIEWED = ("fixed", "accepted")
 
 Point = tuple[float, float]
@@ -30,10 +30,10 @@ class FrameLabels:
     image: str  # file name of the frame in the dataset's images/ folder
     width: int
     height: int
-    status: str = "sam3"
+    status: str = "auto"
     water: list[list[Point]] = field(default_factory=list)  # polygons: the pool area (swimmers included)
     ropes: list[list[Point]] = field(default_factory=list)  # polygons: each lane rope's outline
-    source: str = ""  # what made the first labels, e.g. "sam3-litetext-s0"
+    source: str = ""  # what made the first labels, e.g. "pool-unet 20261116-224516" (empty: drawn by hand)
 
     @property
     def name(self) -> str:
@@ -64,7 +64,7 @@ class FrameLabels:
         try:
             labels = cls(
                 video=str(data["video"]), frame_idx=int(data["frame_idx"]), image=str(data["image"]),
-                width=int(data["width"]), height=int(data["height"]), status=str(data.get("status", "sam3")),
+                width=int(data["width"]), height=int(data["height"]), status=str(data.get("status", "auto")),
                 water=[[(float(x), float(y)) for x, y in polygon] for polygon in data.get("water", [])],
                 ropes=[_rope_polygon(r) for r in data.get("ropes", [])],
                 source=str(data.get("source", "")),

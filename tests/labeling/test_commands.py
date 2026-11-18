@@ -1,4 +1,6 @@
 import cv2
+import numpy as np
+import pytest
 
 from pool_segmentation.labeling.commands import auto_label, pick, write_masks
 from pool_segmentation.labeling.dataset import Dataset
@@ -44,16 +46,16 @@ def test_auto_labels_new_frames_and_never_replaces_checked_labels(tmp_path, make
 
     assert auto_label(dataset, labeler=labeler) == 2
     first = dataset.labels("IMG_1_000015")
-    assert (first.status, first.source, len(first.water), len(first.ropes)) == ("sam3", "fake", 1, 1)
-    assert dataset.sam3("IMG_1_000015") == first
+    assert (first.status, first.source, len(first.water), len(first.ropes)) == ("auto", "fake", 1, 1)
+    assert dataset.auto("IMG_1_000015") == first
     assert auto_label(dataset, labeler=labeler) == 0  # nothing new
 
     first.status, first.ropes = "fixed", []
     dataset.save(first)
     assert auto_label(dataset, redo=True, labeler=labeler) == 2
     assert dataset.labels("IMG_1_000015") == first  # checked by hand: kept
-    assert dataset.labels("IMG_1_000045").status == "sam3"
-    assert dataset.status_counts() == {"no labels": 0, "sam3": 1, "fixed": 1, "accepted": 0}
+    assert dataset.labels("IMG_1_000045").status == "auto"
+    assert dataset.status_counts() == {"no labels": 0, "auto": 1, "fixed": 1, "accepted": 0}
 
 
 def test_masks_only_for_checked_frames(tmp_path, make_video):
@@ -69,6 +71,43 @@ def test_masks_only_for_checked_frames(tmp_path, make_video):
     assert mask.shape == (48, 64) and set(mask.flatten()) == {0, 1, 2}
     assert write_masks(dataset, include_unreviewed=True) == 2
 
-    checked.status = "sam3"
+    checked.status = "auto"
     dataset.save(checked)
     assert write_masks(dataset) == 0 and not list(dataset.masks.glob("*.png"))  # old mask removed
+
+
+class FakePoolModel:
+    """Stands in for a trained pool model: the lower half of every frame is water."""
+
+    def predict(self, frame):
+        classes = np.zeros(frame.shape[:2], np.uint8)
+        classes[frame.shape[0] // 2:] = 1
+        return classes
+
+
+def test_auto_labels_with_the_newest_trained_model(tmp_path, make_video, monkeypatch):
+    runs = tmp_path / "models"
+    for run in ("20261116-223804", "20261116-224516"):
+        (runs / run).mkdir(parents=True)
+        (runs / run / "model.pt").write_bytes(b"")
+    loaded = []
+    monkeypatch.setattr("pool_segmentation.model.predict.PoolModel.load",
+                        lambda path, device=None: loaded.append(path) or FakePoolModel())
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [make_video(tmp_path / "IMG_1.mp4", frames=60)], every_seconds=1.0, max_per_video=25)
+
+    assert auto_label(dataset, models_dir=runs) == 2
+
+    assert loaded == [runs / "20261116-224516" / "model.pt"]  # the newest run
+    labels = dataset.labels("IMG_1_000015")
+    assert (labels.status, labels.source) == ("auto", "pool-unet 20261116-224516")
+    assert labels.water == [[(0.0, 24.0), (0.0, 47.0), (63.0, 47.0), (63.0, 24.0)]]  # the lower half, on the frame's edges
+    assert labels.ropes == []  # the model has no rope class: ropes are drawn by hand
+
+
+def test_auto_without_a_trained_model_says_to_train_one(tmp_path, make_video):
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [make_video(tmp_path / "IMG_1.mp4", frames=30)], every_seconds=1.0, max_per_video=25)
+
+    with pytest.raises(FileNotFoundError, match="train one"):
+        auto_label(dataset, models_dir=tmp_path / "no-models")

@@ -2,8 +2,8 @@
 
   frames.json             the picked frames: name, video, frame index, size
   images/<name>.jpg       the frames
-  sam3/<name>.json        the model's labels, never edited
-  labels/<name>.json      the labels to check and fix (start as a copy of sam3/)
+  auto/<name>.json        the model's labels (python -m pool_segmentation.labeling auto), never edited
+  labels/<name>.json      the labels to check and fix (start as a copy of auto/, or drawn by hand)
   masks/<name>.png        training masks drawn from labels/ (one class number per pixel)
 
 A frame's name is <video name>_<frame index, 6 digits>, e.g. IMG_4884_000261.
@@ -37,7 +37,7 @@ class Dataset:
     def __init__(self, root: str | Path):
         self.root = Path(root)
         self.images = self.root / "images"
-        self.sam3_dir = self.root / "sam3"
+        self.auto_dir = self.root / "auto"
         self.labels_dir = self.root / "labels"
         self.masks = self.root / "masks"
 
@@ -68,16 +68,17 @@ class Dataset:
         path = self.labels_dir / f"{name}.json"
         return FrameLabels.from_json(path) if path.exists() else None
 
-    def sam3(self, name: str) -> FrameLabels | None:
-        path = self.sam3_dir / f"{name}.json"
+    def auto(self, name: str) -> FrameLabels | None:
+        """The model's labels of a frame, as `auto` made them (None if it hasn't labeled the frame)."""
+        path = self.auto_dir / f"{name}.json"
         return FrameLabels.from_json(path) if path.exists() else None
 
     def save(self, labels: FrameLabels) -> None:
         labels.to_json(self.labels_dir / f"{labels.name}.json")
 
-    def save_sam3(self, labels: FrameLabels) -> None:
+    def save_auto(self, labels: FrameLabels) -> None:
         """Save the model's labels; they also become the labels to check, unless those were already reviewed."""
-        labels.to_json(self.sam3_dir / f"{labels.name}.json")
+        labels.to_json(self.auto_dir / f"{labels.name}.json")
         current = self.labels(labels.name)
         if current is None or current.status not in REVIEWED:
             self.save(labels)
@@ -85,10 +86,10 @@ class Dataset:
     def empty_labels(self, frame: Frame) -> FrameLabels:
         """Labels of a frame the model has not labeled yet: no shapes."""
         return FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image, width=frame.width,
-                           height=frame.height, status="sam3")
+                           height=frame.height, status="auto")
 
     def status_counts(self) -> dict[str, int]:
-        counts = {"no labels": 0, "sam3": 0, "fixed": 0, "accepted": 0}
+        counts = {"no labels": 0, "auto": 0, "fixed": 0, "accepted": 0}
         for f in self.frames():
             labels = self.labels(f.name)
             counts["no labels" if labels is None else labels.status] += 1

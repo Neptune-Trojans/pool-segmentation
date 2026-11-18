@@ -140,7 +140,7 @@ select {
 .frame-item.current { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .frame-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .frame-item.fixed .dot, .frame-item.accepted .dot { background: var(--ok); }
-.frame-item.sam3 .dot { background: var(--warning); }
+.frame-item.auto .dot { background: var(--warning); }
 .frame-item-status { grid-column: 2; color: var(--muted); font-size: 11px; }
 
 /* Editor */

@@ -1,7 +1,7 @@
 # pool-segmentation
 
 Find a swimming pool's water in video frames (a small U-Net), and the tools to make its training data: pick frames,
-first labels from SAM3, the Labels page to check them. Used by swim-analytics (`../swim-analytics`), which installs
+first labels from the newest trained model, the Labels page to check them. Used by swim-analytics (`../swim-analytics`), which installs
 it.
 
 ## Rules
@@ -15,14 +15,14 @@ it.
 ## Environment
 
 - Python venv in `.venv/`: run everything with `.venv/bin/python`
-- Dependencies are in `pyproject.toml`: `.venv/bin/pip install -e ".[app,dev,sam3,train]"`
+- Dependencies are in `pyproject.toml`: `.venv/bin/pip install -e ".[app,dev,train]"`
 - swim-analytics uses this repo through an editable install in its own venv (`pip install -e ../pool-segmentation`):
   a change here is live there. After changing the public API (`pool_segmentation/__init__.py`, `PoolModel`,
   `find_model`, `create_app`), run swim-analytics' tests too
 
 ## Conventions
 
-- Design and status: `docs/model.md` (network, training, results) and `docs/labeling.md` (classes, SAM3 labels, the
+- Design and status: `docs/model.md` (network, training, results) and `docs/labeling.md` (classes, the model's first labels, the
   Labels page). Keep them up to date
 - `pool_segmentation/model/`: the network (`python -m pool_segmentation.model train`); `labeling/`: training data
   (`python -m pool_segmentation.labeling`); `app/`: the Labels page (`python -m pool_segmentation.app`)
@@ -38,7 +38,7 @@ it.
 - Unit tests: `.venv/bin/python -m pytest`; files in `tests/`, same folder structure as `pool_segmentation/`
 - `tests/app/test_labels_browser.py` drives headless Chrome (skipped without it, ~3 s); leave it out with
   `-m "not browser"`. Run it after changing `pool_segmentation/app/static/`
-- Tests that train use tiny frames, the CPU and `pretrained=False` (no weight download); tests never load SAM3
+- Tests that train use tiny frames, the CPU and `pretrained=False` (no weight download); tests never load a trained model (a stand-in or an untrained one)
 - Write test outputs to a temp folder, never to `data/labels/` (checked labels are hand work) or `data/models/`
 
 ## Releasing (PyPI: `pip install pool-segmentation`)

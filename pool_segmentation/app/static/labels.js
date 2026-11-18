@@ -1,4 +1,4 @@
-// Labels page (docs/labeling.md): check and fix the pool labels SAM3 made for frames picked for training.
+// Labels page (docs/labeling.md): check and fix the pool labels of frames picked for training.
 // A frame's labels are polygons, in pixels of the full-size frame: the pool's water, and each lane rope's outline.
 // Edits are dots: click dots around an area to add it, drag corners, add corners on edges, delete.
 
@@ -20,8 +20,8 @@ const state = {
   frames: [], // GET /api/labels: name, video, frame_idx, status, counts of shapes
   frame: null, // the open frame: name, video, frame_idx, width, height
   shapes: null, // {water: [polygon, ...], ropes: [polygon, ...]}, polygon: [[x, y], ...]
-  status: "sam3",
-  sam3: null, // the model's shapes, to tell "fixed" from "accepted"
+  status: "auto",
+  auto: null, // the model's shapes, to tell "fixed" from "accepted"
   saved: "", // shapes as last saved (JSON), to know whether there are unsaved changes
   image: null,
   view: { scale: 1, x: 0, y: 0 }, // screen = image point * scale + (x, y), in CSS pixels
@@ -74,7 +74,7 @@ async function openFrame(name) {
   state.image = image;
   state.shapes = { water: data.labels.water, ropes: data.labels.ropes };
   state.status = data.labels.status;
-  state.sam3 = data.sam3 ? { water: data.sam3.water, ropes: data.sam3.ropes } : null;
+  state.auto = data.auto ? { water: data.auto.water, ropes: data.auto.ropes } : null;
   state.saved = shapesJSON(state.shapes);
   state.selection = null;
   state.undo = [];
@@ -88,10 +88,10 @@ async function openFrame(name) {
   $("message").textContent = "";
 }
 
-// Save the open frame: "fixed" if its shapes differ from SAM3's, "accepted" if not
+// Save the open frame: "fixed" if its shapes differ from the model's, "accepted" if not
 async function save() {
   await finishEditing();
-  const status = state.sam3 && rounded(state.shapes) === rounded(state.sam3) ? "accepted" : "fixed";
+  const status = state.auto && rounded(state.shapes) === rounded(state.auto) ? "accepted" : "fixed";
   const body = { status, ...state.shapes };
   const result = await requestJSON(`api/labels/${encodeURIComponent(state.frame.name)}`, body, "PUT");
   state.status = result.labels.status;
@@ -147,7 +147,7 @@ function updatePanel() {
   const f = state.frame;
   $("frame-name").textContent = f.name;
   $("frame-info").textContent = `${f.video}, frame ${f.frame_idx} (${f.width}×${f.height})`;
-  const labels = { sam3: "SAM3, not checked", fixed: "fixed", accepted: "accepted (SAM3 was right)" };
+  const labels = { auto: "the model's, not checked", fixed: "fixed", accepted: "accepted (the model was right)" };
   $("status").textContent = labels[state.status] ?? state.status;
   $("status").className = `status ${isChecked(state.status) ? "ok" : "warn"}`;
   $("unsaved").hidden = !changed();
