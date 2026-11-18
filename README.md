@@ -4,14 +4,14 @@ Find a swimming pool's **water** in video frames, and make the training data for
 encoder) that takes about 25 ms per frame on a MacBook, plus the tools to label your own pool's frames and train it
 in minutes.
 
-Built for [swim-analytics](https://github.com/Neptune-Trojans/swim-analytics), which uses it to drop people outside
-the pool and, later, to find the lanes. Lane ropes as a second class are planned.
+Built for swim-analytics (swimming video analysis), which uses it to drop people outside the pool and, later, to
+find the lanes. Lane ropes as a second class are planned.
 
 ## Install
 
 ```bash
-pip install "pool-segmentation @ git+https://github.com/Neptune-Trojans/pool-segmentation.git"
-pip install "pool-segmentation[app,sam3,train] @ git+https://github.com/Neptune-Trojans/pool-segmentation.git"  # all tools
+pip install pool-segmentation                     # the model
+pip install "pool-segmentation[app,sam3,train]"   # and all tools
 ```
 
 Extras: `app` the Labels page, `sam3` first labels from SAM3-LiteText, `train` TensorBoard, `dev` the tests.
@@ -40,8 +40,8 @@ python -m pool_segmentation.model train                       # 4. train on the 
 ```
 
 About 100 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. Details:
-[docs/labeling.md](docs/labeling.md) (classes, how SAM3's labels are made, the Labels page) and
-[docs/model.md](docs/model.md) (network, training, results).
+[docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how SAM3's labels are made, the Labels page) and
+[docs/model.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/model.md) (network, training, results).
 
 The Labels page can also be shown inside another FastAPI app, under a path of its own:
 
@@ -68,9 +68,15 @@ tests/             # same layout as pool_segmentation/
 ## Development
 
 ```bash
+git clone https://github.com/Neptune-Trojans/pool-segmentation.git && cd pool-segmentation
 python -m venv .venv && .venv/bin/pip install -e ".[app,dev,sam3,train]"
 .venv/bin/python -m pytest                    # all tests (the browser tests need Chrome)
 .venv/bin/python -m pytest -m "not browser"   # without them
 ```
 
 `data/` is git-ignored: the labeling dataset holds frames of real people, and models are large. Keep both local.
+
+## License
+
+MIT ([LICENSE](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/LICENSE)). SAM3-LiteText, used for first labels, is downloaded from Hugging Face under its own
+license.

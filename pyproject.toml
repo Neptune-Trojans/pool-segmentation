@@ -1,9 +1,20 @@
 [project]
 name = "pool-segmentation"
-version = "0.1.0"
+version = "0.1.0"  # a release: bump it, then push the tag v<version> (CLAUDE.md, "Releasing")
 description = "Find a swimming pool's water in video frames, and make the training data for it"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Paul Yudkin" }]
 requires-python = ">=3.10"
+keywords = ["swimming pool", "segmentation", "computer vision", "u-net", "labeling", "sam3"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 dependencies = [
     "numpy",
     "opencv-python",
@@ -17,8 +28,13 @@ sam3 = ["transformers>=5", "pillow"]  # first labels from SAM3-LiteText (python 
 train = ["tensorboard"]  # watch training (python -m pool_segmentation.model train)
 dev = ["pytest", "httpx2", "websocket-client"]  # httpx2: FastAPI test client; websocket-client: drives Chrome
 
+[project.urls]
+Homepage = "https://github.com/Neptune-Trojans/pool-segmentation"
+Documentation = "https://github.com/Neptune-Trojans/pool-segmentation/tree/main/docs"
+Issues = "https://github.com/Neptune-Trojans/pool-segmentation/issues"
+
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]  # >= 77: license as an SPDX string (license = "MIT")
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

@@ -41,6 +41,15 @@ it.
 - Tests that train use tiny frames, the CPU and `pretrained=False` (no weight download); tests never load SAM3
 - Write test outputs to a temp folder, never to `data/labels/` (checked labels are hand work) or `data/models/`
 
+## Releasing (PyPI: `pip install pool-segmentation`)
+
+- `.github/workflows/tests.yml` runs the tests (not the browser ones) on every push to `main` and pull request
+- A release: bump `version` in `pyproject.toml` (0.1.0 → 0.1.1 for fixes, 0.2.0 for new features), commit, then
+  `git tag v<version> && git push origin v<version>`. `.github/workflows/release.yml` runs the tests, checks the tag
+  matches the version, builds and publishes to PyPI (trusted publishing: no token in GitHub). Tag and push only when
+  the user asks for a release
+- Check the package locally first: `python -m build` and `twine check --strict dist/*`
+
 ## Workflow
 
 - Work directly on `main`
