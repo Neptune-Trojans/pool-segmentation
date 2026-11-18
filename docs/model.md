@@ -1,7 +1,7 @@
 # The pool model (pool segmentation network)
 
-_Agreed: 2026-11-16. Status: training built (water / other); used by the pipeline's pool stage (stage 2, since
-2026-11-17)._
+_Agreed: 2026-11-16 (in swim-analytics; moved to this repo 2026-11-18). Status: training built (water / other);
+swim-analytics' pool stage runs it on every frame of its videos._
 
 A small, fast network that finds the pool's **water** in every frame. It is trained on the frames checked on the Labels
 page (`docs/labeling.md`). It replaces SAM3-LiteText (about 1.7 s per frame) with about 25 ms per frame. Lane ropes
@@ -14,10 +14,10 @@ come later as a third class. The model choice is explained in `research/pool-mod
 | 0 | other | everything outside the water polygons |
 | 1 | water | inside a water polygon, or inside a lane rope (ropes lie in the pool) |
 
-The masks are drawn from the label files with the same `rasterize()` as `python -m swim.labeling masks`, so training
+The masks are drawn from the label files with the same `rasterize()` as `python -m pool_segmentation.labeling masks`, so training
 always uses the labels as they are now, without a separate step. Only checked frames (`fixed`, `accepted`) are used.
 
-## Network (`swim/pool_model/network.py`)
+## Network (`pool_segmentation/model/network.py`)
 
 - **U-Net** on a **ResNet18** encoder pretrained on ImageNet (torchvision weights, downloaded once, 45 MB). ResNet34
   is available with `--encoder resnet34`.
@@ -31,7 +31,7 @@ always uses the labels as they are now, without a separate step. Only checked fr
 - Why this size: the water would be found at 512×288 too, but ropes (later) are about 6 px wide at 1024×576 and 3 px
   at 512×288 (`research/pool-model-training.md`).
 
-## Training (`swim/pool_model/train.py`, `data.py`)
+## Training (`pool_segmentation/model/train.py`, `data.py`)
 
 - **Split**: every 6th frame of each video, in time order, validates; the rest train. The first set (91 frames) is 75
   training and 16 validation frames, and every video with 2 or more frames is in the validation set.
@@ -56,7 +56,7 @@ always uses the labels as they are now, without a separate step. Only checked fr
 
 ## Files
 
-`python -m swim.pool_model train` makes one folder per run, `data/models/pool/<date-time>/` (git-ignored):
+`python -m pool_segmentation.model train` makes one folder per run, `data/models/pool/<date-time>/` (git-ignored):
 
 ```
 model.pt        the trained network: weights, classes, encoder, input size
@@ -84,21 +84,23 @@ The run keeps the names of its training frames, so a model can be traced to its 
 ## Commands
 
 ```bash
-.venv/bin/python -m swim.pool_model train                       # defaults: 40 epochs, 1024x576, resnet18
-.venv/bin/python -m swim.pool_model train --epochs 60 --encoder resnet34
-.venv/bin/python -m swim.pool_model train --help                # all options
+python -m pool_segmentation.model train                       # defaults: 40 epochs, 1024x576, resnet18
+python -m pool_segmentation.model train --epochs 60 --encoder resnet34
+python -m pool_segmentation.model train --help                # all options
 ```
 
 Using a model:
 
 ```python
-from swim.pool_model.predict import PoolModel
+from pool_segmentation import PoolModel, find_model
 
-model = PoolModel.load("data/models/pool/<run>/model.pt")
-classes = model.predict(frame)  # BGR frame -> class number per pixel (0 other, 1 water), the frame's size
+model = PoolModel.load(find_model())  # the newest run in data/models/pool/; or find_model("<run>"), or a path
+classes = model.predict(frame)        # BGR frame -> class number per pixel (0 other, 1 water), the frame's size
+water = model.water(frame)            # the water's outline: one polygon [(x, y), ...] per piece, holes filled
 ```
 
-Like the other models, import it inside the function that creates the model; it imports torch.
+`PoolModel` imports torch (on first use: `import pool_segmentation` alone doesn't). `water_polygons(mask)` turns any
+water mask into such outlines (3 px tolerance, pieces under 0.1% of the frame dropped).
 
 ## Results
 
@@ -120,6 +122,7 @@ an M4 Pro.
 ## Next
 
 - Run it on whole videos and look at where it fails. Add frames like those (pick, SAM3, check), train again.
-- The pipeline's `pool` stage (`swim/stages/pool/`, `docs/pipeline.md`) runs the newest model on every frame
-  (`pool.model`: a run folder name, or `latest`). Next: filtering drops boxes outside the water.
+- swim-analytics' `pool` stage runs the newest model on every frame (its `pool.model` setting: a run folder name,
+  or `latest`); its filtering drops people outside the water. On IMG_5198 (a pool not in the training frames) it
+  misses a beige-floored shallow area: frames from there would fix it.
 - Lane ropes as a third class, for the lanes (joining broken tracks).

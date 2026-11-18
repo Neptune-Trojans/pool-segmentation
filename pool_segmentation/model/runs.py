@@ -1,0 +1,21 @@
+"""Training runs: `python -m pool_segmentation.model train` saves each in its own folder, <runs>/<YYYYmmdd-HHMMSS>/
+(model.pt, summary.json, log.csv, val/ pictures)."""
+
+from pathlib import Path
+
+MODELS_DIR = Path("data/models/pool")
+
+
+def find_model(name: str = "latest", root: str | Path = MODELS_DIR) -> Path:
+    """The model.pt of training run `name` in `root`, or of the newest run that finished (has a model.pt) for
+    "latest". Raises FileNotFoundError if there is none."""
+    root = Path(root)
+    if name == "latest":
+        runs = sorted(path.parent for path in root.glob("*/model.pt"))  # folder names are date-times: sorted = in time
+        if not runs:
+            raise FileNotFoundError(f"No trained pool model in {root}: train one with python -m pool_segmentation.model train")
+        return runs[-1] / "model.pt"
+    path = root / name / "model.pt"
+    if not path.exists():
+        raise FileNotFoundError(f"No pool model {path} (give the name of a run folder in {root}, or latest)")
+    return path

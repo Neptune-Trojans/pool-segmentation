@@ -1,4 +1,4 @@
-"""Train the pool model on the checked frames of a labeling dataset (docs/pool-model.md).
+"""Train the pool model on the checked frames of a labeling dataset (docs/model.md).
 
 Each run gets its own folder, `<out>/<date-time>/`:
 
@@ -22,11 +22,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from swim.labeling.dataset import Dataset, Frame
-from swim.labeling.labels import FrameLabels
-from swim.pool_model.data import CLASSES, IGNORE, TrainingSet, checked_frames, split, water_mask
-from swim.pool_model.network import UNet
-from swim.pool_model.predict import pick_device, predict_classes
+from pool_segmentation.labeling.dataset import Dataset, Frame
+from pool_segmentation.labeling.labels import FrameLabels
+from pool_segmentation.model.data import CLASSES, IGNORE, TrainingSet, checked_frames, split, water_mask
+from pool_segmentation.model.network import UNet
+from pool_segmentation.model.predict import pick_device, predict_classes
 
 EVAL_EVERY = 5  # epochs between validation checks (log, TensorBoard)
 

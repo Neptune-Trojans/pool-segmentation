@@ -1,6 +1,6 @@
 """Training data for the pool model: the checked frames of the labeling dataset and their water masks.
 
-The masks are drawn from the label files with the same `rasterize()` as `python -m swim.labeling masks`, so training
+The masks are drawn from the label files with the same `rasterize()` as `python -m pool_segmentation.labeling masks`, so training
 always uses the labels as they are now. Classes: 0 other, 1 water. Lane ropes lie in the pool, so their pixels count
 as water.
 """
@@ -11,9 +11,9 @@ import cv2
 import numpy as np
 import torch
 
-from swim.labeling.dataset import Dataset, Frame
-from swim.labeling.labels import OTHER, REVIEWED, FrameLabels, rasterize
-from swim.pool_model.network import MEAN, STD
+from pool_segmentation.labeling.dataset import Dataset, Frame
+from pool_segmentation.labeling.labels import OTHER, REVIEWED, FrameLabels, rasterize
+from pool_segmentation.model.network import MEAN, STD
 
 CLASSES = ("other", "water")
 IGNORE = 255  # mask value of pixels from outside the frame (after zooming out or turning): not counted

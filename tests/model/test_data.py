@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from swim.labeling.dataset import Frame
-from swim.labeling.labels import FrameLabels
-from swim.pool_model.data import IGNORE, TrainingSet, augment, checked_frames, input_size, split, water_mask
+from pool_segmentation.labeling.dataset import Frame
+from pool_segmentation.labeling.labels import FrameLabels
+from pool_segmentation.model.data import IGNORE, TrainingSet, augment, checked_frames, input_size, split, water_mask
 
 
 def frames(video: str, count: int) -> list[Frame]:

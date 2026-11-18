@@ -2,7 +2,7 @@
 
 The frame is encoded once, then four text prompts: "swimming pool" (the water), "lane rope", "blue stripe" (the floor
 lane lines, which "swimming pool" leaves out; they belong to the water) and "person" (swimmers in the water belong to
-the pool area too). The masks become shapes (swim/labeling/shapes.py). About 2 s per frame on a MacBook GPU. The first
+the pool area too). The masks become shapes (pool_segmentation/labeling/shapes.py). About 2 s per frame on a MacBook GPU. The first
 run downloads the model from Hugging Face (about 2 GB).
 
 License: the image encoder comes from Meta's SAM 3 (SAM License).
@@ -10,8 +10,8 @@ License: the image encoder comes from Meta's SAM 3 (SAM License).
 
 import numpy as np
 
-from swim.labeling import shapes
-from swim.labeling.labels import Point
+from pool_segmentation.labeling import shapes
+from pool_segmentation.labeling.labels import Point
 
 MODEL_ID = "vil-uob/sam3-litetext-s0"
 PROMPTS = {"water": "swimming pool", "rope": "lane rope", "floor line": "blue stripe", "person": "person"}

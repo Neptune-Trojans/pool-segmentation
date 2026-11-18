@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from swim.labeling.labels import Point, band_corners
+from pool_segmentation.labeling.labels import Point, band_corners
 
 WATER_TOLERANCE = 8.0  # pixels: the polygon stays within this distance of the mask's outline
 MIN_POOL_PIECE = 0.005  # pieces of pool smaller than this share of the frame are dropped

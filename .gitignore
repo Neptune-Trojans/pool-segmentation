@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+.DS_Store
+.idea/
+.pytest_cache/
+
+# Videos, the labeling dataset (frames of real people) and trained models stay local
+data/
+*.mp4
+*.mov
+
+research/

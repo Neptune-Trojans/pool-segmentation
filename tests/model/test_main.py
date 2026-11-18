@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from swim.pool_model.__main__ import main, size
+from pool_segmentation.model.__main__ import main, size
 
 
 @pytest.fixture
@@ -23,12 +23,12 @@ def fake_train(tmp_path, monkeypatch):
             "val_iou_mean": 0.97, "val_iou_min": 0.95}))
         return run
 
-    monkeypatch.setattr("swim.pool_model.train.train", train)
+    monkeypatch.setattr("pool_segmentation.model.train.train", train)
     return calls
 
 
 def test_train_passes_its_options_and_prints_the_result(fake_train, monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", ["swim.pool_model", "train", "--dataset", "labels", "--out", "models",
+    monkeypatch.setattr(sys, "argv", ["pool_segmentation.model", "train", "--dataset", "labels", "--out", "models",
                                       "--epochs", "3", "--size", "512x288", "--device", "cpu", "--workers", "0"])
 
     main()
@@ -42,7 +42,7 @@ def test_train_passes_its_options_and_prints_the_result(fake_train, monkeypatch,
 
 
 def test_train_without_checked_frames_stops_with_the_reason(fake_train, monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", ["swim.pool_model", "train", "--dataset", "empty"])
+    monkeypatch.setattr(sys, "argv", ["pool_segmentation.model", "train", "--dataset", "empty"])
 
     with pytest.raises(SystemExit) as stop:
         main()

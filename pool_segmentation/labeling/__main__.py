@@ -1,23 +1,23 @@
-"""Make training data for the pool segmentation model (docs/labeling.md). Run from the repo root:
+"""Make training data for the pool segmentation model (docs/labeling.md). Run in the folder that holds the data:
 
-    python -m swim.labeling pick data/input/*.MOV        # 1. pick frames (one every 2 s, at most 25 per video)
-    python -m swim.labeling auto                          # 2. first labels from SAM3-LiteText (about 2 s per frame)
-    python -m swim.app                                    # 3. check and fix them on the Labels page
-    python -m swim.labeling masks                         # 4. training masks from the checked labels
-    python -m swim.labeling status                        # how many frames are checked
+    python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames (one every 2 s, at most 25 per video)
+    python -m pool_segmentation.labeling auto                     # 2. first labels from SAM3-LiteText (about 2 s per frame)
+    python -m pool_segmentation.app                               # 3. check and fix them on the Labels page
+    python -m pool_segmentation.labeling masks                    # 4. training masks from the checked labels
+    python -m pool_segmentation.labeling status                   # how many frames are checked
 """
 
 import argparse
 from pathlib import Path
 
-from swim.labeling.commands import auto_label, pick, write_masks
-from swim.labeling.dataset import Dataset
+from pool_segmentation.labeling.commands import auto_label, pick, write_masks
+from pool_segmentation.labeling.dataset import Dataset
 
 DEFAULT_DATASET = "data/labels/pool"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="python -m swim.labeling", description="Make training data for the pool model.")
+    parser = argparse.ArgumentParser(prog="python -m pool_segmentation.labeling", description="Make training data for the pool model.")
     parser.add_argument("--dataset", default=DEFAULT_DATASET, help=f"Dataset folder (default: {DEFAULT_DATASET})")
     commands = parser.add_subparsers(dest="command", required=True)
 

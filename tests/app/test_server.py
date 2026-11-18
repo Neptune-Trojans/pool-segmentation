@@ -1,13 +1,15 @@
-"""Labels page API: list the picked frames, their labels and image, save checked labels."""
+"""Labels page API: list the picked frames, their labels and image, save checked labels. Also the page itself, on its
+own and inside another app."""
 
 import cv2
 import numpy as np
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from swim.app.server import create_app
-from swim.labeling.dataset import Dataset, Frame
-from swim.labeling.labels import FrameLabels
+from pool_segmentation.app.server import create_app
+from pool_segmentation.labeling.dataset import Dataset, Frame
+from pool_segmentation.labeling.labels import FrameLabels
 
 WATER = [[[0, 20], [99, 20], [99, 59], [0, 59]]]
 ROPES = [[[0, 38], [99, 34], [99, 36], [0, 42]]]
@@ -25,7 +27,7 @@ def setup(tmp_path):
     dataset.save_sam3(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=100, height=60,
                                   water=[[(0, 20), (99, 20), (99, 59), (0, 59)]], ropes=[[(0, 38), (99, 34), (99, 36), (0, 42)]],
                                   source="sam3-litetext-s0"))
-    client = TestClient(create_app(tmp_path / "output", tmp_path / "input", dataset.root), base_url="http://127.0.0.1")
+    client = TestClient(create_app(dataset.root), base_url="http://127.0.0.1")
     return client, dataset
 
 
@@ -98,9 +100,9 @@ def test_unknown_frames(setup, request_):
 
 
 def test_empty_dataset_lists_nothing(tmp_path):
-    client = TestClient(create_app(tmp_path / "o", tmp_path / "i", tmp_path / "none"), base_url="http://127.0.0.1")
+    client = TestClient(create_app(tmp_path / "none"), base_url="http://127.0.0.1")
     assert client.get("/api/labels").json()["frames"] == []
-    assert "labels.js" in client.get("/labels").text
+    assert "labels.js" in client.get("/").text
 
 
 def test_water_edit_merges_without_saving(setup):
@@ -118,3 +120,31 @@ def test_water_edit_refuses_bad_polygons(setup):
     client, _ = setup
     assert client.post("/api/labels/IMG_1_000010/water", json={"water": WATER, "add": [[0, 0], [5, 5]]}).status_code == 400
     assert client.post("/api/labels/nope/water", json={"water": WATER, "add": WATER[0]}).status_code == 404
+
+
+def test_page_and_its_files_use_relative_links(setup):
+    client, _ = setup
+
+    page = client.get("/")
+
+    assert page.status_code == 200
+    assert 'href="static/labels.css"' in page.text and 'src="static/labels.js"' in page.text
+    assert 'href="/' not in page.text and 'src="/' not in page.text  # absolute links would break under another app
+    assert client.get("/static/labels.js").status_code == 200
+    assert client.get("/static/labels.css").status_code == 200
+    assert client.get("/api/labels").json()["home"] is None  # on its own: no link back
+
+
+def test_another_app_can_show_the_page_under_its_own_path(setup):
+    _, dataset = setup
+    parent = FastAPI()
+    parent.mount("/labels", create_app(dataset.root, home=("← Videos", "/")))
+    client = TestClient(parent, base_url="http://127.0.0.1")
+
+    assert client.get("/labels/").status_code == 200
+    assert client.get("/labels/static/labels.js").status_code == 200
+    listing = client.get("/labels/api/labels").json()
+    assert listing["home"] == {"text": "← Videos", "url": "/"}
+    assert [f["name"] for f in listing["frames"]] == ["IMG_1_000010", "IMG_1_000040"]
+    redirect = client.get("/labels?frame=IMG_1_000040", follow_redirects=False)  # links made before it moved
+    assert redirect.headers["location"].endswith("/labels/?frame=IMG_1_000040")

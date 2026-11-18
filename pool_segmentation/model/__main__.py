@@ -1,6 +1,6 @@
-"""Train the pool segmentation network (docs/pool-model.md). Run from the repo root:
+"""Train the pool segmentation network (docs/model.md). Run in the folder that holds the data:
 
-    python -m swim.pool_model train      # on the checked frames of data/labels/pool; a run folder in data/models/pool/
+    python -m pool_segmentation.model train      # on the checked frames of data/labels/pool; a run folder in data/models/pool/
 """
 
 import argparse
@@ -15,7 +15,7 @@ def size(text: str) -> tuple[int, int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="python -m swim.pool_model", description="Train the pool segmentation network.")
+    parser = argparse.ArgumentParser(prog="python -m pool_segmentation.model", description="Train the pool segmentation network.")
     commands = parser.add_subparsers(dest="command", required=True)
     t = commands.add_parser("train", help="Train on the checked frames (water / other)")
     t.add_argument("--dataset", default="data/labels/pool", help="Labeling dataset (default: data/labels/pool)")
@@ -31,7 +31,7 @@ def main() -> None:
     t.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    from swim.pool_model.train import train  # imports torch
+    from pool_segmentation.model.train import train  # imports torch
 
     try:
         run = train(args.dataset, args.out, epochs=args.epochs, batch=args.batch, size=args.size, lr=args.lr,

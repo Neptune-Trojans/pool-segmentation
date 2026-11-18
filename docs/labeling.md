@@ -1,13 +1,13 @@
 # Labeling (training data for the pool segmentation model)
 
-_Agreed: 2026-11-16. Status: built (frame picking, SAM3 labels, Labels page, training masks); the model is not trained
-yet._
+_Agreed: 2026-11-16 (in swim-analytics; moved to this repo 2026-11-18). Status: built (frame picking, SAM3 labels,
+Labels page, training masks); the model is trained on them (`docs/model.md`)._
 
-Goal: a small, fast model that finds the pool's **water** and the **lane ropes** in every frame (lanes are the clue
-for joining a swimmer's broken tracks, see `research/tracklet-linking.md`). SAM3-LiteText does this well but takes
-about 2 s per frame on a MacBook (`research/pool-water-segmentation.md`), so it labels a set of frames once, we check
-and fix its labels by hand, and a dedicated model is trained on them. All videos are filmed in the same pool, so a
-model learned from them fits.
+Goal: a small, fast model that finds the pool's **water** and the **lane ropes** in every frame (swim-analytics uses
+the lanes to join a swimmer's broken tracks). SAM3-LiteText does this well but takes about 2 s per frame on a MacBook
+(`research/pool-water-segmentation.md`), so it labels a set of frames once, we check and fix its labels by hand, and a
+dedicated model is trained on them. The first videos were filmed in two pools; frames from other pools make the model
+work there too.
 
 ## Classes
 
@@ -71,11 +71,11 @@ save.
 ## Steps
 
 ```bash
-.venv/bin/python -m swim.labeling pick data/input/*.MOV   # 1. pick frames: one every 2 s, at most 25 per video
-.venv/bin/python -m swim.labeling auto                     # 2. SAM3-LiteText labels them (about 2 s per frame)
-.venv/bin/python -m swim.app                               # 3. check and fix them: http://127.0.0.1:8000/labels
-.venv/bin/python -m swim.labeling masks                    # 4. training masks from the checked frames
-.venv/bin/python -m swim.labeling status                   # how many frames are checked
+python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames: one every 2 s, at most 25 per video
+python -m pool_segmentation.labeling auto                     # 2. SAM3-LiteText labels them (about 2 s per frame)
+python -m pool_segmentation.app                               # 3. check and fix them: http://127.0.0.1:8001
+python -m pool_segmentation.labeling masks                    # 4. training masks from the checked frames
+python -m pool_segmentation.labeling status                   # how many frames are checked
 ```
 
 - `pick` skips frames already in the dataset, so it can be run again with more videos or `--every 1`.
@@ -83,11 +83,10 @@ save.
 - `masks` writes masks for the checked frames only (`--all`: also the unchecked ones) and removes masks of frames no
   longer checked, so `masks/` is exactly the training set.
 - Start with about 100 frames, train, look where the model fails, then add frames like those.
+- Paths are relative to the folder you run them in: the dataset is `data/labels/pool/` (`--dataset` to change it).
+  `auto` needs the `sam3` extra (`pip install "pool-segmentation[sam3]"`), the Labels page the `app` extra.
 
-This is training-data tooling, not video processing: it has its own command (`python -m swim.labeling`), not
-`run_pipeline()`.
-
-## How SAM3's labels are made (`swim/labeling/sam3_labeler.py`, `shapes.py`)
+## How SAM3's labels are made (`pool_segmentation/labeling/sam3_labeler.py`, `shapes.py`)
 
 Each frame is encoded once, then four prompts: "swimming pool", "lane rope", "blue stripe" (floor lane lines),
 "person".
@@ -104,7 +103,7 @@ Each frame is encoded once, then four prompts: "swimming pool", "lane rope", "bl
   from the mask; masks that are not line-shaped (length under 5 × width) are dropped; pieces on one line (within 3°
   and a few pixels) are joined, e.g. a rope cut by a swimmer. Saved as the 4 corners of that band.
 
-## The Labels page (`/labels`)
+## The Labels page (`python -m pool_segmentation.app`)
 
 | Part | What it does |
 |---|---|
@@ -113,14 +112,17 @@ Each frame is encoded once, then four prompts: "swimming pool", "lane rope", "bl
 | Tools | + Rope (R), + Water (W): click dots around the area. Each dot connects to the last, and from the third dot on the area fills in (the closing edge dashed); nothing follows the mouse. A drag moves the frame meanwhile (a click without moving is a dot). Click the first dot, double-click or press Enter to finish; Backspace (or Z) removes the last dot, Esc cancels. A click beyond the frame puts the dot on its edge. A new rope is added as drawn; new water is merged into the water and the outlines are simplified again on the server (the fast fix for a swimmer cut out of the pool). Too much water (deck marked as water): move or delete corners. Delete (the selected corner, rope or water area), Undo / Redo (Z / Shift+Z) |
 | Save | Save (S) and Save & next (A). The status is set from the shapes: `fixed` if they differ from SAM3's, `accepted` if not. ← / → open the previous / next frame and save changes first. An area still being drawn (3 dots or more) is finished before saving or leaving the frame: what is on screen is saved |
 
-API (`swim/app/server.py`): `GET /api/labels` (frames and statuses), `GET /api/labels/<name>` (labels and SAM3's),
+Other apps can show the page too, under a path of their own: `app.mount("/labels", create_app(labels_dir, home=("← Videos",
+"/")))` (`pool_segmentation/app/server.py`); `home` adds a link back to that app. The page uses relative links only, so
+it works at the root and under such a path. swim-analytics shows it this way at `/labels/`.
+
+API (`pool_segmentation/app/server.py`): `GET /api/labels` (frames, statuses, the link back), `GET /api/labels/<name>` (labels and SAM3's),
 `GET /api/labels/<name>/image`, `PUT /api/labels/<name>` (status, water, ropes; checked against the label format; the
 frame's video, index and size come from the dataset, not the page), `POST /api/labels/<name>/water` (+ Water: the
 water polygons with an area merged in; nothing saved).
 
 ## Next
 
-- Train the model: `docs/pool-model.md` (water first; training reads the checked labels directly, with the same
+- Train the model: `docs/model.md` (water first; training reads the checked labels directly, with the same
   `rasterize()` as `masks`).
-- Used by the pipeline's `pool` stage (water per frame, since 2026-11-17). Next: drop boxes outside the pool; ropes
-  as lines per frame (lane of each box, for joining broken tracks).
+- Ropes as a third class of the model, then as lines per frame (swim-analytics: the lane of each swimmer).

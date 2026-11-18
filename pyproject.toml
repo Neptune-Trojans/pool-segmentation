@@ -1,0 +1,33 @@
+[project]
+name = "pool-segmentation"
+version = "0.1.0"
+description = "Find a swimming pool's water in video frames, and make the training data for it"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "torch",
+    "torchvision",  # the U-Net's ResNet encoder
+]
+
+[project.optional-dependencies]
+app = ["fastapi", "uvicorn"]  # the Labels page (python -m pool_segmentation.app)
+sam3 = ["transformers>=5", "pillow"]  # first labels from SAM3-LiteText (python -m pool_segmentation.labeling auto)
+train = ["tensorboard"]  # watch training (python -m pool_segmentation.model train)
+dev = ["pytest", "httpx2", "websocket-client"]  # httpx2: FastAPI test client; websocket-client: drives Chrome
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pool_segmentation*"]
+
+[tool.setuptools.package-data]
+"pool_segmentation.app" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["browser: drives headless Chrome (skipped without it); leave out with -m \"not browser\""]

@@ -1,6 +1,6 @@
 import pytest
 
-from swim.labeling.labels import ROPE, WATER, FrameLabels, band_corners, rasterize
+from pool_segmentation.labeling.labels import ROPE, WATER, FrameLabels, band_corners, rasterize
 
 ROPE_OUTLINE = [(10, 28), (90, 29), (90, 31), (10, 32)]  # 4 px wide at its left end, 2 px at its right end
 

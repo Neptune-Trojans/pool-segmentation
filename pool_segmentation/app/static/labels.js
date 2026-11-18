@@ -45,8 +45,12 @@ const isChecked = (status) => status === "fixed" || status === "accepted";
 // Start
 
 async function main() {
-  const listing = await requestJSON("/api/labels");
+  const listing = await requestJSON("api/labels");
   state.frames = listing.frames;
+  if (listing.home) {
+    // Shown inside another app (e.g. swim-analytics): a link back to it
+    Object.assign($("home"), { textContent: listing.home.text, href: listing.home.url, hidden: false });
+  }
   if (!state.frames.length) {
     $("labeling").hidden = true;
     $("no-dataset").hidden = false;
@@ -62,9 +66,9 @@ async function main() {
 }
 
 async function openFrame(name) {
-  const data = await requestJSON(`/api/labels/${encodeURIComponent(name)}`);
+  const data = await requestJSON(`api/labels/${encodeURIComponent(name)}`);
   const image = new Image();
-  image.src = `/api/labels/${encodeURIComponent(name)}/image`;
+  image.src = `api/labels/${encodeURIComponent(name)}/image`;
   await image.decode();
   state.frame = data.frame;
   state.image = image;
@@ -77,7 +81,7 @@ async function openFrame(name) {
   state.redo = [];
   setMode("edit");
   history.replaceState(null, "", `?frame=${encodeURIComponent(name)}`);
-  document.title = `${name} · Labels · swim-analytics`;
+  document.title = `${name} · Labels · pool-segmentation`;
   fit();
   updatePanel();
   renderList();
@@ -89,7 +93,7 @@ async function save() {
   await finishEditing();
   const status = state.sam3 && rounded(state.shapes) === rounded(state.sam3) ? "accepted" : "fixed";
   const body = { status, ...state.shapes };
-  const result = await requestJSON(`/api/labels/${encodeURIComponent(state.frame.name)}`, body, "PUT");
+  const result = await requestJSON(`api/labels/${encodeURIComponent(state.frame.name)}`, body, "PUT");
   state.status = result.labels.status;
   state.shapes = { water: result.labels.water, ropes: result.labels.ropes };
   state.saved = shapesJSON(state.shapes);
@@ -302,7 +306,7 @@ async function finishWater() {
   const body = { water: state.shapes.water, add: state.draft };
   setMode("edit");
   try {
-    const { water } = await requestJSON(`/api/labels/${encodeURIComponent(name)}/water`, body);
+    const { water } = await requestJSON(`api/labels/${encodeURIComponent(name)}/water`, body);
     if (state.frame.name !== name) return; // another frame is open by now
     edit(() => {
       state.shapes.water = water;

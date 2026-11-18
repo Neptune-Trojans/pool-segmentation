@@ -1,4 +1,4 @@
-"""The labeling steps run by `python -m swim.labeling` (docs/labeling.md): pick frames, label them with the model,
+"""The labeling steps run by `python -m pool_segmentation.labeling` (docs/labeling.md): pick frames, label them with the model,
 write training masks."""
 
 import time
@@ -8,9 +8,9 @@ from typing import Protocol
 import cv2
 import numpy as np
 
-from swim.labeling.dataset import Dataset
-from swim.labeling.frames import add_video_frames
-from swim.labeling.labels import REVIEWED, FrameLabels, Point, rasterize
+from pool_segmentation.labeling.dataset import Dataset
+from pool_segmentation.labeling.frames import add_video_frames
+from pool_segmentation.labeling.labels import REVIEWED, FrameLabels, Point, rasterize
 
 
 class Labeler(Protocol):
@@ -21,7 +21,7 @@ class Labeler(Protocol):
 
 def create_labeler() -> Labeler:
     # Imported here: loading the model pulls in torch and transformers
-    from swim.labeling.sam3_labeler import Sam3Labeler
+    from pool_segmentation.labeling.sam3_labeler import Sam3Labeler
 
     return Sam3Labeler()
 

@@ -13,7 +13,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from swim.labeling.labels import REVIEWED, FrameLabels
+from pool_segmentation.labeling.labels import REVIEWED, FrameLabels
 
 
 @dataclass(frozen=True)

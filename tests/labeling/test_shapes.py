@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from swim.labeling.shapes import Rope, join_pieces, person_in_water, pool_polygons, rope_from_mask, ropes_from_masks
+from pool_segmentation.labeling.shapes import Rope, join_pieces, person_in_water, pool_polygons, rope_from_mask, ropes_from_masks
 
 H, W = 200, 300
 
@@ -120,7 +120,7 @@ def test_a_swimmer_cut_off_by_the_frame_edge_is_filled_but_the_deck_corner_is_no
 
 
 def test_add_water_merges_the_added_area():
-    from swim.labeling.shapes import add_water
+    from pool_segmentation.labeling.shapes import add_water
 
     pool = [[(0, 60), (299, 60), (299, 199), (0, 199)]]
     notch = [[(0, 60), (299, 60), (299, 199), (0, 199), (0, 130), (40, 130), (40, 100), (0, 100)]]  # a swimmer cut out

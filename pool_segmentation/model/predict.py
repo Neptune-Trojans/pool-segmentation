@@ -6,8 +6,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from swim.pool_model.data import input_size, prepare, resize
-from swim.pool_model.network import UNet
+from pool_segmentation.model.data import input_size, prepare, resize
+from pool_segmentation.model.network import UNet
+from pool_segmentation.polygons import Polygon, water_polygons
 
 
 def pick_device(name: str | None = None) -> torch.device:
@@ -31,7 +32,7 @@ def predict_classes(net: UNet, frame: np.ndarray, size: tuple[int, int], device:
 
 
 class PoolModel:
-    """A model saved by `python -m swim.pool_model train` (its model.pt)."""
+    """A model saved by `python -m pool_segmentation.model train` (its model.pt)."""
 
     def __init__(self, net: UNet, classes: tuple[str, ...], size: tuple[int, int], device: torch.device):
         self.net = net.to(device).eval()
@@ -49,3 +50,7 @@ class PoolModel:
     def predict(self, frame: np.ndarray) -> np.ndarray:
         """Class number per pixel of a BGR frame (uint8, the frame's size): 0 other, 1 water."""
         return predict_classes(self.net, frame, self.size, self.device)
+
+    def water(self, frame: np.ndarray) -> list[Polygon]:
+        """The water's outline in a BGR frame: one polygon per piece of water, holes filled (water_polygons)."""
+        return water_polygons(self.predict(frame) == 1)

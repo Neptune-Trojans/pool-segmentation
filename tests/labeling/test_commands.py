@@ -1,9 +1,9 @@
 import cv2
 
-from swim.labeling.commands import auto_label, pick, write_masks
-from swim.labeling.dataset import Dataset
-from swim.labeling.frames import pick_indices
-from swim.labeling.labels import FrameLabels
+from pool_segmentation.labeling.commands import auto_label, pick, write_masks
+from pool_segmentation.labeling.dataset import Dataset
+from pool_segmentation.labeling.frames import pick_indices
+from pool_segmentation.labeling.labels import FrameLabels
 
 
 class FakeLabeler:

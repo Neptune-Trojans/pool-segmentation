@@ -4,8 +4,8 @@ from pathlib import Path
 
 import cv2
 
-from swim.labeling.dataset import Dataset, Frame, frame_name
-from swim.utils.video import get_video_info, read_frames
+from pool_segmentation.labeling.dataset import Dataset, Frame, frame_name
+from pool_segmentation.video import get_video_info, read_frames
 
 JPEG_QUALITY = 95
 

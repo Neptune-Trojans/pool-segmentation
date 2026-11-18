@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import pytest
 
-from swim.labeling.dataset import Dataset, Frame
-from swim.labeling.labels import FrameLabels
+from pool_segmentation.labeling.dataset import Dataset, Frame
+from pool_segmentation.labeling.labels import FrameLabels
 
 W, H = 256, 144
 WATER = [(0, 50), (255, 40), (255, 143), (0, 143)]  # the lower part of the frame

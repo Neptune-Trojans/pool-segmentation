@@ -4,8 +4,8 @@ import json
 import cv2
 import pytest
 
-from swim.pool_model.predict import PoolModel
-from swim.pool_model.train import train
+from pool_segmentation.model.predict import PoolModel
+from pool_segmentation.model.train import train
 
 
 def test_a_short_training_run_saves_a_model_that_predicts(dataset, tmp_path):

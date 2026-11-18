@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from swim.pool_model.network import UNet
+from pool_segmentation.model.network import UNet
 
 
 def test_scores_for_every_input_pixel():

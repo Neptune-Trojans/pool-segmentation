@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>swim-analytics · Labels</title>
+  <title>Labels · pool-segmentation</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235b9dff'/%3E%3Cpath d='M5 19c3.5-3 7-3 11 0s7.5 3 11 0' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/style.css">
-  <script type="module" src="/static/labels.js"></script>
+  <link rel="stylesheet" href="static/labels.css">
+  <script type="module" src="static/labels.js"></script>
 </head>
 <body class="labels-body">
   <header class="topbar">
-    <a class="brand" href="/">swim-analytics</a>
+    <a class="brand" href="./">pool-segmentation</a>
     <span class="mode">Labels</span>
-    <strong id="frame-name" class="video-name"></strong>
+    <strong id="frame-name" class="frame-name"></strong>
     <span id="unsaved" class="unsaved" hidden>● not saved</span>
-    <a class="back" href="/">← Videos</a>
+    <a id="home" class="back" hidden></a>
   </header>
 
   <div id="error" class="banner" role="alert" hidden></div>
@@ -38,7 +38,7 @@
       <div id="class-tip" class="class-tip" role="tooltip" hidden></div>
     </section>
 
-    <aside class="panel label-panel">
+    <aside class="label-panel">
       <section>
         <h2>Frame</h2>
         <p id="frame-info" class="frame-info"></p>
@@ -47,7 +47,7 @@
           <button id="accept" class="btn-primary" type="button" title="Save as checked and open the next frame (A)">Save &amp; next</button>
           <button id="save" class="btn-secondary" type="button" title="Save as checked (S)">Save</button>
         </div>
-        <p id="message" class="settings-status" role="status"></p>
+        <p id="message" class="message" role="status"></p>
       </section>
       <section>
         <h2>Shapes</h2>
@@ -78,11 +78,11 @@
     </aside>
   </main>
 
-  <main id="no-dataset" class="library" hidden>
+  <main id="no-dataset" class="empty-dataset" hidden>
     <h1>No frames to label yet</h1>
-    <p class="muted">Pick frames and let SAM3 label them first (from the repo root):</p>
-    <pre class="commands">.venv/bin/python -m swim.labeling pick data/input/*.MOV
-.venv/bin/python -m swim.labeling auto</pre>
+    <p class="muted">Pick frames and let SAM3 label them first:</p>
+    <pre class="commands">python -m pool_segmentation.labeling pick data/input/*.MOV
+python -m pool_segmentation.labeling auto</pre>
     <p class="muted">Dataset folder: <code id="dataset-dir"></code></p>
   </main>
 </body>
