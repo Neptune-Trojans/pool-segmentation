@@ -21,7 +21,6 @@ const state = {
   frame: null, // the open frame: name, video, frame_idx, width, height
   shapes: null, // {water: [polygon, ...], ropes: [polygon, ...]}, polygon: [[x, y], ...]
   status: "auto",
-  auto: null, // the model's shapes, to tell "fixed" from "accepted"
   saved: "", // shapes as last saved (JSON), to know whether there are unsaved changes
   image: null,
   view: { scale: 1, x: 0, y: 0 }, // screen = image point * scale + (x, y), in CSS pixels
@@ -37,7 +36,6 @@ const state = {
 };
 
 const shapesJSON = (shapes) => JSON.stringify(shapes);
-const rounded = (shapes) => JSON.stringify(shapes, (_, v) => (typeof v === "number" ? Math.round(v * 10) / 10 : v));
 const changed = () => state.shapes && shapesJSON(state.shapes) !== state.saved;
 const isChecked = (status) => status === "fixed" || status === "accepted";
 
@@ -74,7 +72,6 @@ async function openFrame(name) {
   state.image = image;
   state.shapes = { water: data.labels.water, ropes: data.labels.ropes };
   state.status = data.labels.status;
-  state.auto = data.auto ? { water: data.auto.water, ropes: data.auto.ropes } : null;
   state.saved = shapesJSON(state.shapes);
   state.selection = null;
   state.undo = [];
@@ -88,12 +85,10 @@ async function openFrame(name) {
   $("message").textContent = "";
 }
 
-// Save the open frame: "fixed" if its shapes differ from the model's, "accepted" if not
+// Save the open frame; the server sets its status: "accepted" if the shapes are still the model's, "fixed" if not
 async function save() {
   await finishEditing();
-  const status = state.auto && rounded(state.shapes) === rounded(state.auto) ? "accepted" : "fixed";
-  const body = { status, ...state.shapes };
-  const result = await requestJSON(`api/labels/${encodeURIComponent(state.frame.name)}`, body, "PUT");
+  const result = await requestJSON(`api/labels/${encodeURIComponent(state.frame.name)}`, state.shapes, "PUT");
   state.status = result.labels.status;
   state.shapes = { water: result.labels.water, ropes: result.labels.ropes };
   state.saved = shapesJSON(state.shapes);

@@ -33,11 +33,16 @@ class FrameLabels:
     status: str = "auto"
     water: list[list[Point]] = field(default_factory=list)  # polygons: the pool area (swimmers included)
     ropes: list[list[Point]] = field(default_factory=list)  # polygons: each lane rope's outline
-    source: str = ""  # what made the first labels, e.g. "pool-unet 20261116-224516" (empty: drawn by hand)
+    source: str = ""  # the model that made the first labels, e.g. "pool-unet 20261116-224516" (empty: drawn by hand)
 
     @property
     def name(self) -> str:
         return Path(self.image).stem
+
+    def same_shapes(self, other: "FrameLabels") -> bool:
+        """Whether both have the same water and ropes, as saved (to 0.1 pixel)."""
+        mine, theirs = self.to_dict(), other.to_dict()
+        return mine["water"] == theirs["water"] and mine["ropes"] == theirs["ropes"]
 
     def validate(self) -> None:
         """Raise ValueError if the labels are not usable."""

@@ -27,7 +27,7 @@ def main() -> None:
     p.add_argument("--max-per-video", type=int, default=25, help="At most this many frames per video (default 25)")
 
     a = commands.add_parser("auto", help="First labels (water) from a trained pool model for frames that have none")
-    a.add_argument("--redo", action="store_true", help="Label every frame again (checked labels are kept)")
+    a.add_argument("--redo", action="store_true", help="Also label the frames not checked yet again (checked labels are kept)")
     a.add_argument("--model", default="latest", help="Training run folder name, or latest (default: the newest)")
     a.add_argument("--models", default="data/models/pool", help="Folder of the training runs (default: data/models/pool)")
 

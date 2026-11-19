@@ -40,27 +40,34 @@ def pick(dataset: Dataset, videos: list[Path], every_seconds: float, max_per_vid
 
 def auto_label(dataset: Dataset, redo: bool = False, labeler: Labeler | None = None, model: str = "latest",
                models_dir: str | Path = MODELS_DIR) -> int:
-    """Label every frame the model has not labeled yet (all with `redo`), with `labeler` or else the trained pool model
-    `model` (create_labeler). Reviewed labels are never replaced."""
-    todo = [f for f in dataset.frames() if redo or dataset.auto(f.name) is None]
+    """Label every frame that has no labels yet (with `redo`: also those not checked yet, again), with `labeler` or else
+    the trained pool model `model` (create_labeler). Checked labels are never replaced. Returns how many were labeled."""
+
+    def to_label(frame) -> bool:
+        labels = dataset.labels(frame.name)
+        return labels is None or (redo and labels.status not in REVIEWED)
+
+    todo = [f for f in dataset.frames() if to_label(f)]
     if not todo:
-        print("Every frame already has the model's labels (use --redo to label them again)")
+        print("Every frame already has labels (use --redo to label the ones not checked yet again)")
         return 0
     labeler = labeler or create_labeler(model, models_dir)
     print(f"Labeling {len(todo)} frames with {labeler.name}")
-    start = time.time()
+    start, done = time.time(), 0
     for k, frame in enumerate(todo, 1):
         image = cv2.imread(str(dataset.image_path(frame.name)))
         if image is None:
             raise OSError(f"Cannot read {dataset.image_path(frame.name)}")
         water, ropes = labeler.label(image)
-        dataset.save_auto(FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image,
-                                      width=frame.width, height=frame.height, status="auto", water=water, ropes=ropes,
-                                      source=labeler.name))
+        if not to_label(frame):  # checked on the Labels page meanwhile
+            continue
+        dataset.save(FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image, width=frame.width,
+                                 height=frame.height, status="auto", water=water, ropes=ropes, source=labeler.name))
+        done += 1
         left = (len(todo) - k) * (time.time() - start) / k
         print(f"  {k}/{len(todo)} {frame.name}: {len(water)} water polygon(s), {len(ropes)} rope(s)"
               f"  (about {left / 60:.0f} min left)", flush=True)
-    return len(todo)
+    return done
 
 
 def write_masks(dataset: Dataset, include_unreviewed: bool = False) -> int:

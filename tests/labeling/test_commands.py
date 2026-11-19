@@ -47,15 +47,32 @@ def test_auto_labels_new_frames_and_never_replaces_checked_labels(tmp_path, make
     assert auto_label(dataset, labeler=labeler) == 2
     first = dataset.labels("IMG_1_000015")
     assert (first.status, first.source, len(first.water), len(first.ropes)) == ("auto", "fake", 1, 1)
-    assert dataset.auto("IMG_1_000015") == first
     assert auto_label(dataset, labeler=labeler) == 0  # nothing new
+    assert labeler.calls == 2
 
     first.status, first.ropes = "fixed", []
     dataset.save(first)
-    assert auto_label(dataset, redo=True, labeler=labeler) == 2
+    assert auto_label(dataset, redo=True, labeler=labeler) == 1  # only the frame not checked yet
     assert dataset.labels("IMG_1_000015") == first  # checked by hand: kept
     assert dataset.labels("IMG_1_000045").status == "auto"
     assert dataset.status_counts() == {"no labels": 0, "auto": 1, "fixed": 1, "accepted": 0}
+
+
+def test_auto_keeps_labels_checked_while_it_runs(tmp_path, make_video):
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [make_video(tmp_path / "IMG_1.mp4", frames=60)], every_seconds=1.0, max_per_video=25)
+    frame = dataset.frame("IMG_1_000045")
+    by_hand = FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image, width=frame.width,
+                          height=frame.height, status="fixed", water=[[(0, 0), (63, 0), (63, 47)]])
+
+    class CheckedMeanwhile(FakeLabeler):  # the frame is saved on the Labels page while the model labels it
+        def label(self, image):
+            if self.calls == 1:
+                dataset.save(by_hand)
+            return super().label(image)
+
+    assert auto_label(dataset, labeler=CheckedMeanwhile()) == 1
+    assert dataset.labels("IMG_1_000045") == by_hand
 
 
 def test_masks_only_for_checked_frames(tmp_path, make_video):

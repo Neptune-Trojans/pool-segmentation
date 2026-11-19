@@ -42,8 +42,7 @@ One folder per dataset, `data/labels/pool/` (git-ignored):
 ```
 frames.json             the picked frames: name, video, frame index, size
 images/<name>.jpg       the frames (JPEG, quality 95)
-auto/<name>.json        the model's labels (`auto`), never edited (to tell fixed from accepted)
-labels/<name>.json      the labels you check and fix (start as a copy of auto/, or drawn by hand)
+labels/<name>.json      the labels: the model's first labels (`auto`), which you check and fix, or drawn by hand
 masks/<name>.png        training masks drawn from labels/: one class number per pixel (0, 1, 2)
 ```
 
@@ -61,8 +60,9 @@ full-size frame:
 ```
 
 `status`: `auto` (the model's labels, not checked yet), `fixed` (changed or drawn by hand), `accepted` (checked, the
-model was right). Training uses only `fixed` and `accepted` frames. `source`: what made the first labels (the
-training run), empty for frames drawn by hand.
+model was right). Training uses only `fixed` and `accepted` frames. The Labels page sets it when you save: `accepted`
+if the shapes are still the model's, `fixed` if you changed them (a fixed frame stays fixed). `source`: the model that
+made the first labels (the training run), empty for frames drawn by hand.
 
 Files written before 2026-11-16 store a rope as `{"points": [[x1, y1], [x2, y2]], "widths": [w1, w2]}`; it is read as
 the 4 corners of that band (the same training mask, checked on all 182 files) and written as a polygon at the next
@@ -79,8 +79,8 @@ python -m pool_segmentation.labeling status                   # how many frames 
 ```
 
 - `pick` skips frames already in the dataset, so it can be run again with more videos or `--every 1`.
-- `auto` labels only frames the model hasn't labeled (`--redo`: all again), with the newest training run in
-  `data/models/pool/` (`--model <run>` for another). It never replaces labels you checked. No trained model yet (a
+- `auto` labels only frames without labels (`--redo`: also those not checked yet, again), with the newest training
+  run in `data/models/pool/` (`--model <run>` for another). It never replaces labels you checked. No trained model yet (a
   first dataset): skip it and draw the water and ropes on the Labels page.
 - `masks` writes masks for the checked frames only (`--all`: also the unchecked ones) and removes masks of frames no
   longer checked, so `masks/` is exactly the training set.
@@ -104,15 +104,15 @@ python -m pool_segmentation.labeling status                   # how many frames 
 | Frame list | Every frame with its status (orange: not checked, green: checked), filter (all / not checked / fixed / accepted), how many are checked. Click to open |
 | Editor | The frame with the water (blue) and ropes (orange) drawn on top. A tooltip next to the mouse names the class under it, as the training mask will have it (Lane rope 2, Water, Other; over a corner also what dragging it does). Corners: squares for water, circles for ropes; drag one to move it. Click a rope or water area to select it; the selected area shows + handles on its edges to add a corner. Drag on the frame to move it, mouse wheel to zoom |
 | Tools | + Rope (R), + Water (W): click dots around the area. Each dot connects to the last, and from the third dot on the area fills in (the closing edge dashed); nothing follows the mouse. A drag moves the frame meanwhile (a click without moving is a dot). Click the first dot, double-click or press Enter to finish; Backspace (or Z) removes the last dot, Esc cancels. A click beyond the frame puts the dot on its edge. A new rope is added as drawn; new water is merged into the water and the outlines are simplified again on the server (the fast fix for a swimmer cut out of the pool). Too much water (deck marked as water): move or delete corners. Delete (the selected corner, rope or water area), Undo / Redo (Z / Shift+Z) |
-| Save | Save (S) and Save & next (A). The status is set from the shapes: `fixed` if they differ from the model's, `accepted` if not. ← / → open the previous / next frame and save changes first. An area still being drawn (3 dots or more) is finished before saving or leaving the frame: what is on screen is saved |
+| Save | Save (S) and Save & next (A). The status is set from the shapes: `accepted` if they are still the model's, `fixed` if you changed them. ← / → open the previous / next frame and save changes first. An area still being drawn (3 dots or more) is finished before saving or leaving the frame: what is on screen is saved |
 
 Other apps can show the page too, under a path of their own: `app.mount("/labels", create_app(labels_dir, home=("← Videos",
 "/")))` (`pool_segmentation/app/server.py`); `home` adds a link back to that app. The page uses relative links only, so
 it works at the root and under such a path. swim-analytics shows it this way at `/labels/`.
 
-API (`pool_segmentation/app/server.py`): `GET /api/labels` (frames, statuses, the link back), `GET /api/labels/<name>` (labels and the model's),
-`GET /api/labels/<name>/image`, `PUT /api/labels/<name>` (status, water, ropes; checked against the label format; the
-frame's video, index and size come from the dataset, not the page), `POST /api/labels/<name>/water` (+ Water: the
+API (`pool_segmentation/app/server.py`): `GET /api/labels` (frames, statuses, the link back), `GET /api/labels/<name>` (the frame and its labels),
+`GET /api/labels/<name>/image`, `PUT /api/labels/<name>` (water, ropes; checked against the label format; the status
+is set from the shapes, the frame's video, index and size come from the dataset, not the page), `POST /api/labels/<name>/water` (+ Water: the
 water polygons with an area merged in; nothing saved).
 
 ## Next

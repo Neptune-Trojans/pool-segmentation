@@ -24,7 +24,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 class SaveLabelsRequest(BaseModel):
-    status: str
     water: list[list[list[float]]] = []  # polygons: [[x, y], ...]
     ropes: list[list[list[float]]] = []  # polygons: each rope's outline
 
@@ -63,11 +62,10 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
 
     @app.get("/api/labels/{name}")
     def frame_labels(name: str) -> dict:
-        """The frame, its labels (empty ones if the model has not labeled it yet) and the model's original labels."""
+        """The frame and its labels (empty ones if the model has not labeled it yet)."""
         frame = labeled_frame(name)
         labels = dataset.labels(name) or dataset.empty_labels(frame)
-        auto = dataset.auto(name)
-        return {"frame": asdict(frame), "labels": labels.to_dict(), "auto": auto.to_dict() if auto else None}
+        return {"frame": asdict(frame), "labels": labels.to_dict()}
 
     @app.get("/api/labels/{name}/image")
     def frame_image(name: str) -> FileResponse:
@@ -79,17 +77,20 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
 
     @app.put("/api/labels/{name}")
     def save_labels(name: str, request: SaveLabelsRequest) -> dict:
-        """Save the frame's shapes and status; the frame's video, index and size come from the dataset, not the page."""
+        """Save the frame's checked shapes. The status comes from them: "accepted" if they are still the model's labels,
+        "fixed" if not (a fixed frame stays fixed). The frame's video, index and size come from the dataset, not the page."""
         frame = labeled_frame(name)
         previous = dataset.labels(name)
         try:
             labels = FrameLabels.from_dict({
                 "video": frame.video, "frame_idx": frame.frame_idx, "image": frame.image, "width": frame.width,
-                "height": frame.height, "status": request.status, "water": request.water, "ropes": request.ropes,
+                "height": frame.height, "status": "fixed", "water": request.water, "ropes": request.ropes,
                 "source": previous.source if previous else "",
             })
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
+        if previous and previous.status in ("auto", "accepted") and labels.same_shapes(previous):
+            labels.status = "accepted"
         dataset.save(labels)
         return {"labels": labels.to_dict(), "counts": dataset.status_counts()}
 

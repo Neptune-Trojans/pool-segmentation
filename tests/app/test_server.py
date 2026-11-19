@@ -24,9 +24,9 @@ def setup(tmp_path):
     dataset.images.mkdir(parents=True)
     for f in frames:
         cv2.imwrite(str(dataset.image_path(f.name)), np.zeros((60, 100, 3), np.uint8))
-    dataset.save_auto(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=100, height=60,
-                                  water=[[(0, 20), (99, 20), (99, 59), (0, 59)]], ropes=[[(0, 38), (99, 34), (99, 36), (0, 42)]],
-                                  source="pool-unet 20261116-224516"))
+    dataset.save(FrameLabels(video=frames[0].video, frame_idx=10, image=frames[0].image, width=100, height=60,
+                             water=[[(0, 20), (99, 20), (99, 59), (0, 59)]], ropes=[[(0, 38), (99, 34), (99, 36), (0, 42)]],
+                             source="pool-unet 20261116-224516"))
     client = TestClient(create_app(dataset.root), base_url="http://127.0.0.1")
     return client, dataset
 
@@ -49,9 +49,9 @@ def test_frame_labels_and_image(setup):
 
     assert data["frame"] == {"name": "IMG_1_000010", "video": "data/input/IMG_1.MOV", "frame_idx": 10, "width": 100, "height": 60}
     assert data["labels"]["water"] == WATER and data["labels"]["ropes"] == ROPES
-    assert data["auto"]["ropes"] == ROPES
+    assert data["labels"]["status"] == "auto"
     unlabeled = client.get("/api/labels/IMG_1_000040").json()
-    assert unlabeled["labels"]["water"] == [] and unlabeled["auto"] is None
+    assert unlabeled["labels"]["water"] == [] and unlabeled["labels"]["source"] == ""
     image = client.get("/api/labels/IMG_1_000010/image")
     assert image.status_code == 200 and image.headers["content-type"] == "image/jpeg"
 
@@ -60,28 +60,39 @@ def test_save_fixed_labels(setup):
     client, dataset = setup
     ropes = [[[0, 39], [99, 32], [99, 34], [0, 43], [0, 41]]]
 
-    response = client.put("/api/labels/IMG_1_000010", json={"status": "fixed", "water": WATER, "ropes": ropes})
+    response = client.put("/api/labels/IMG_1_000010", json={"water": WATER, "ropes": ropes})
 
     assert response.status_code == 200
     assert response.json()["counts"]["fixed"] == 1
     saved = dataset.labels("IMG_1_000010")
     assert (saved.status, saved.ropes, saved.source) == ("fixed", [[(0, 39), (99, 32), (99, 34), (0, 43), (0, 41)]],
                                                          "pool-unet 20261116-224516")
-    assert dataset.auto("IMG_1_000010").ropes == [[(0, 38), (99, 34), (99, 36), (0, 42)]]  # the model's stay as they were
+
+
+def test_the_status_comes_from_the_shapes(setup):
+    client, dataset = setup
+    status = lambda: dataset.labels("IMG_1_000010").status
+    save = lambda ropes: client.put("/api/labels/IMG_1_000010", json={"water": WATER, "ropes": ropes}).json()
+
+    assert save(ROPES)["labels"]["status"] == "accepted"  # the model's labels, unchanged: the model was right
+    assert save([[[0.04, 38], [99, 34], [99, 36], [0, 42]]])["labels"]["status"] == "accepted"  # same to 0.1 pixel
+    assert save([[[0, 40], [99, 34], [99, 36], [0, 42]]])["labels"]["status"] == "fixed"
+    assert save(ROPES)["labels"]["status"] == "fixed" and status() == "fixed"  # once fixed, it stays fixed
 
 
 def test_a_frame_without_model_labels_can_be_labeled_by_hand(setup):
     client, dataset = setup
 
-    assert client.put("/api/labels/IMG_1_000040", json={"status": "fixed", "water": WATER, "ropes": []}).status_code == 200
-    assert dataset.labels("IMG_1_000040").water == [[(0, 20), (99, 20), (99, 59), (0, 59)]]
+    assert client.put("/api/labels/IMG_1_000040", json={"water": WATER, "ropes": []}).status_code == 200
+    labels = dataset.labels("IMG_1_000040")
+    assert (labels.status, labels.water) == ("fixed", [[(0, 20), (99, 20), (99, 59), (0, 59)]])
 
 
 @pytest.mark.parametrize("body", [
-    {"status": "done", "water": WATER, "ropes": []},
-    {"status": "fixed", "water": [[[0, 0], [5, 5]]], "ropes": []},
-    {"status": "fixed", "water": WATER, "ropes": [[[0, 0], [9, 9]]]},
-    {"status": "fixed", "water": WATER, "ropes": [{"points": [[0, 0], [9, 9]], "widths": [3, 3]}]},  # old format: files only
+    {"water": [[[0, 0], [5, 5]]], "ropes": []},
+    {"water": WATER, "ropes": [[[0, 0], [9, 9]]]},
+    {"water": WATER, "ropes": [{"points": [[0, 0], [9, 9]], "widths": [3, 3]}]},  # old format: files only
+    {"water": "everywhere"},
 ])
 def test_bad_labels_are_refused_and_nothing_changes(setup, body):
     client, dataset = setup
