@@ -254,6 +254,33 @@ a.btn-primary { display: inline-block; text-decoration: none; }
 }
 .folder-chip::before { content: "▸ "; color: var(--muted); }
 .folder-chip:hover { border-color: var(--accent); }
+.upload-note { margin: 10px 0 0; font-size: 12px; }
+.upload {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 8px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+/* Files dragged over the page */
+body.dropping::after {
+  content: "Drop video files to copy them to the videos folder";
+  position: fixed;
+  inset: 10px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 600;
+  pointer-events: none;
+}
 
 .add-settings {
   display: flex;
@@ -327,6 +354,8 @@ a.btn-primary { display: inline-block; text-decoration: none; }
 .footnote { margin-top: 18px; font-size: 12px; }
 
 @media (max-width: 640px) {
+  .folder-bar { flex-wrap: wrap; }
+  .folder-path { flex-basis: calc(100% - 40px); }
   .video-label { grid-template-columns: auto 88px minmax(0, 1fr); }
   .new-frames { grid-column: 3; }
   .toolbar-actions { margin-left: 0; }

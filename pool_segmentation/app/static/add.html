@@ -28,10 +28,20 @@
       <button id="folder-up" class="btn-icon" type="button" title="Parent folder" aria-label="Parent folder">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l-7 7h4.5v7h5v-7H19z"/></svg>
       </button>
-      <input id="folder-path" class="folder-path" type="text" spellcheck="false" autocomplete="off" aria-label="Folder">
+      <input id="folder-path" class="folder-path" type="text" spellcheck="false" autocomplete="off"
+        placeholder="A folder, or a video file" aria-label="Folder or video file">
       <button class="btn-secondary" type="submit">Open</button>
+      <button id="choose-files" class="btn-secondary" type="button"
+        title="Choose video files on this computer: they are copied to the videos folder, ticked">Choose files…</button>
+      <input id="file-input" type="file" accept="video/*,.mov,.mp4,.m4v,.avi,.mkv" multiple hidden>
     </form>
     <nav id="subfolders" class="subfolders" aria-label="Subfolders" hidden></nav>
+    <p class="upload-note muted">Open a folder, or a video by its path (it opens ticked). Or use <strong>Choose
+      files…</strong>, or drop video files on this page: they are copied to <code id="upload-folder"></code>.</p>
+    <div id="upload" class="upload" role="status" hidden>
+      <span id="upload-text"></span>
+      <progress id="upload-progress" class="job-progress" max="1"></progress>
+    </div>
 
     <section class="add-settings" aria-label="How to add them">
       <label class="setting">One frame every

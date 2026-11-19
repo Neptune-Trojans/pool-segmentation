@@ -121,7 +121,8 @@ Linked from the Labels page (**+ Add videos**); swim-analytics shows it at `/lab
 
 | Part | What it does |
 |---|---|
-| Folder | Path field, parent folder, subfolders; opens the videos folder first (`--videos`, default `data/input`; swim-analytics: its input folder), then the last folder used (remembered in the browser) |
+| Folder | Path field, parent folder, subfolders; opens the videos folder first (`--videos`, default `data/input`), then the last folder used (remembered in the browser). The path field also takes a video's path: its folder opens with the video ticked |
+| Video files | **Choose files…**, or video files dropped anywhere on the page: copied to the videos folder (made on the first copy), which then opens with them ticked. Browsers don't tell the page where a chosen file is, so it is copied (a 567 MB video in under a second). A video already there with the same name and size is ticked, not copied again; a different one with the same name is refused (rename the file), as frame names come from the video name. Never replaces a file |
 | Videos | One row each (.mov, .mp4, .m4v, .avi, .mkv): the first frame, length, frames, size, how many of its frames are in the dataset (by name: `<video name>_<frame index>`) and how many new frames the sample rate picks. A click on the row ticks it |
 | Settings | One frame every _n_ s and at most _m_ per video (defaults 2 s and 25, as `pick`; remembered in the browser): the new frames of each video are counted again as you type. First labels: the newest trained model (default), an older training run, or none (frames without labels, to draw by hand). The runs come from `--models` (default `data/models/pool`) |
 | Add to dataset | Starts the job on the server: pick the frames of each video, then the model labels the frames of these videos that have no labels yet (the new ones, and any an earlier, cancelled job left without). One job at a time; it runs on when the page is closed, and the page shows it again when opened. Progress (frames read, model loading, frames labeled, time left) and Cancel: what was added and labeled so far stays |
@@ -136,8 +137,8 @@ its frames. The video path in `frames.json` is relative to the folder the server
 
 Other apps can show the pages too, under a path of their own: `app.mount("/labels", create_app(labels_dir,
 home=("← Videos", "/"), models_dir=..., videos_dir=...))` (`pool_segmentation/app/server.py`); `home` adds a link
-back to that app, `models_dir` (default `data/models/pool`) and `videos_dir` (default `data/input`, else the current
-folder) are for the Add videos page. The pages use relative links only, so they work at the root and under such a
+back to that app, `models_dir` (default `data/models/pool`) and `videos_dir` (default `data/input`: opened first if it
+exists, else the current folder; chosen video files are copied there) are for the Add videos page. The pages use relative links only, so they work at the root and under such a
 path. swim-analytics shows them this way at `/labels/` and `/labels/add`.
 
 API (`pool_segmentation/app/server.py`): `GET /api/labels` (frames, statuses, the link back), `GET /api/labels/<name>` (the frame and its labels),
@@ -147,7 +148,9 @@ water polygons with an area merged in; nothing saved), `DELETE /api/labels/<name
 
 Add videos (`pool_segmentation/app/add_videos.py`): `GET /api/add` (start folder, training runs newest first, default
 sample rate, the job running or last run), `GET /api/add/folder?path=&every_seconds=&max_per_video=` (subfolders,
-videos with their frames in the dataset and the new ones), `GET /api/add/thumbnail?path=`, `POST /api/add` (videos as
+videos with their frames in the dataset and the new ones; `path` a video: its folder, the video as `selected`),
+`PUT /api/add/upload?name=` (the body: a video file, copied to the videos folder; 409 if a file has that name),
+`GET /api/add/thumbnail?path=`, `POST /api/add` (videos as
 absolute paths, `every_seconds`, `max_per_video`, `model`: a run, `latest` or null; 409 while a job runs),
 `GET /api/add/job`, `POST /api/add/job/cancel`.
 

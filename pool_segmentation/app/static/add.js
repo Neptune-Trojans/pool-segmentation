@@ -1,8 +1,11 @@
 // Add videos page (docs/labeling.md): pick frames from new videos for the training data, and let a trained model
 // label their water. The server does the work in the background (POST api/add), one job at a time; this page shows
-// its progress and links to the new frames on the Labels page.
+// its progress and links to the new frames on the Labels page. Videos come from a folder on this computer (browsed,
+// or a video's path), or are chosen / dropped as files: those are copied to the videos folder (PUT api/add/upload).
 
 import { $, el, hideError, requestJSON, showError } from "./dom.js";
+
+const VIDEO_SUFFIXES = [".mov", ".mp4", ".m4v", ".avi", ".mkv"];
 
 const STORAGE = {
   folder: "pool-segmentation.add.folder",
@@ -18,6 +21,7 @@ const state = {
   job: null, // the job running or last run
   polling: null,
   request: 0, // folder listings asked for: only the newest one is shown
+  uploading: false, // video files being copied to the videos folder
 };
 
 // Remembered in this browser only (last folder, sample rate); the page works without it (private window)
@@ -44,6 +48,7 @@ async function main() {
     Object.assign($("home"), { textContent: options.home.text, href: options.home.url, hidden: false });
   }
   $("dataset-dir").textContent = options.dataset;
+  $("upload-folder").textContent = options.upload_folder;
   $("every").value = store.get(STORAGE.every) ?? options.defaults.every_seconds;
   $("max-per-video").value = store.get(STORAGE.max) ?? options.defaults.max_per_video;
   buildModels(options);
@@ -80,9 +85,10 @@ function sampling() {
 // ---------------------------------------------------------------------------------------------------------------
 // Folder: path field, parent folder, subfolders, videos
 
-// Load a folder (null = the server's videos folder). `history`: "push" (the user moved to another folder: Back
-// returns), "replace" (first load), "none" (Back / Forward, a new sample rate, a job done)
-async function loadFolder(folder, history = "none") {
+// Load a folder (null = the server's videos folder), or a video's folder with the video ticked. `history`: "push"
+// (the user moved to another folder: Back returns), "replace" (first load), "none" (Back / Forward, a new sample
+// rate, a job done). `select`: paths of videos to tick
+async function loadFolder(folder, history = "none", select = []) {
   const { every_seconds, max_per_video } = sampling() ?? state.options.defaults;
   const query = new URLSearchParams({ every_seconds, max_per_video });
   if (folder) query.set("path", folder);
@@ -96,6 +102,7 @@ async function loadFolder(folder, history = "none") {
   if (history === "push" && moved) window.history.pushState(null, "", url);
   if (history === "replace") window.history.replaceState(null, "", url);
   if (moved) state.selected.clear();
+  for (const path of [listing.selected, ...select]) if (path) state.selected.add(path);
   renderFolder();
   renderVideos();
 }
@@ -174,9 +181,11 @@ function videoMeta(v) {
     parts.push(duration(v.info.frame_count / v.info.fps), `${v.info.frame_count} frames`,
       `${v.info.width}×${v.info.height}`, `${Math.round(v.info.fps)} fps`);
   }
-  parts.push(v.size >= 1e9 ? `${(v.size / 1e9).toFixed(1)} GB` : `${Math.round(v.size / 1e6)} MB`);
+  parts.push(fileSize(v.size));
   return parts.join(" · ");
 }
+
+const fileSize = (bytes) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : `${Math.round(bytes / 1e6)} MB`);
 
 function duration(seconds) {
   if (seconds < 60) return `${Math.max(Math.round(seconds), 1)} s`;
@@ -242,6 +251,16 @@ function setupControls() {
   });
   $("add").addEventListener("click", () => attempt(addVideos()));
   $("cancel").addEventListener("click", () => attempt(cancelJob()));
+  $("choose-files").addEventListener("click", () => $("file-input").click());
+  $("file-input").addEventListener("change", (event) => {
+    const files = [...event.target.files];
+    event.target.value = ""; // the same file can be chosen again
+    copyVideos(files);
+  });
+  setupDrop();
+  window.addEventListener("beforeunload", (event) => {
+    if (state.uploading) event.preventDefault(); // leaving stops the copy
+  });
 }
 
 function updateToolbar() {
@@ -263,7 +282,7 @@ function updateToolbar() {
   else if (chosen.length && frames) summary = `${plural(frames, "new frame")} from ${plural(chosen.length, "video")}`;
   else if (chosen.length) summary = "Nothing new: their frames are in the dataset already (a shorter step picks more)";
   $("add-summary").textContent = summary;
-  $("add").disabled = !picked || !frames || running();
+  $("add").disabled = !picked || !frames || running() || state.uploading;
 }
 
 async function addVideos() {
@@ -280,6 +299,115 @@ async function addVideos() {
 async function cancelJob() {
   const { job } = await requestJSON("api/add/job/cancel", {});
   showJob(job);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Video files chosen or dropped: copied to the videos folder, which then opens with them ticked
+
+const isVideoFile = (file) => VIDEO_SUFFIXES.some((suffix) => file.name.toLowerCase().endsWith(suffix));
+
+async function copyVideos(files) {
+  if (state.uploading || !files.length) return;
+  const folder = state.options.upload_folder;
+  const videos = files.filter(isVideoFile);
+  const problems = files.filter((f) => !isVideoFile(f)).map((f) => `${f.name}: not a video (${VIDEO_SUFFIXES.join(", ")})`);
+  const paths = [];
+  state.uploading = true;
+  $("choose-files").disabled = true;
+  updateToolbar();
+  try {
+    const present = await videosIn(folder);
+    for (const [k, file] of videos.entries()) {
+      // The same video already there (same name and size): ticked there, not copied again
+      const there = present.get(file.name);
+      if (there && there.size === file.size) {
+        paths.push(there.path);
+        continue;
+      }
+      if (there) {
+        problems.push(`${file.name}: another video with this name is in ${folder} (rename the file to add it)`);
+        continue;
+      }
+      const text = `Copying ${file.name} to the videos folder${videos.length > 1 ? ` (${k + 1} of ${videos.length})` : ""}`;
+      try {
+        const { path } = await sendFile(file, (sent) => showCopy(`${text}: ${fileSize(sent)} of ${fileSize(file.size)}`, sent / file.size));
+        paths.push(path);
+      } catch (error) {
+        problems.push(`${file.name}: ${error.message}`);
+      }
+    }
+  } finally {
+    state.uploading = false;
+    $("choose-files").disabled = false;
+    $("upload").hidden = true;
+    updateToolbar();
+  }
+  try {
+    if (paths.length) await loadFolder(folder, "push", paths);
+  } catch (error) {
+    problems.push(error.message);
+  }
+  if (problems.length) showError(problems.join(" · "));
+  else hideError();
+}
+
+// The videos in a folder by file name ({path, size}); none if the folder doesn't exist yet
+async function videosIn(folder) {
+  try {
+    const listing = await requestJSON(`api/add/folder?${new URLSearchParams({ path: folder })}`);
+    return new Map(listing.videos.map((v) => [v.file, v]));
+  } catch {
+    return new Map();
+  }
+}
+
+function showCopy(text, fraction) {
+  $("upload").hidden = false;
+  $("upload-text").textContent = text;
+  $("upload-progress").value = fraction;
+}
+
+// PUT the file as the request's body (XMLHttpRequest: it reports how much is sent; fetch doesn't)
+function sendFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", `api/add/upload?${new URLSearchParams({ name: file.name })}`);
+    xhr.upload.addEventListener("progress", (event) => onProgress(event.loaded));
+    xhr.addEventListener("load", () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(typeof data.detail === "string" ? data.detail : `${xhr.status} ${xhr.statusText}`));
+    });
+    xhr.addEventListener("error", () => reject(new Error("the copy was interrupted")));
+    xhr.send(file);
+  });
+}
+
+// Files dragged over the page: it shows where to drop them; a drop copies them
+function setupDrop() {
+  const hasFiles = (event) => [...(event.dataTransfer?.types ?? [])].includes("Files");
+  let depth = 0; // dragenter / dragleave also fire for each element inside the page
+  document.addEventListener("dragenter", (event) => {
+    if (!hasFiles(event)) return;
+    depth += 1;
+    document.body.classList.add("dropping");
+  });
+  document.addEventListener("dragleave", (event) => {
+    if (!hasFiles(event)) return;
+    depth = Math.max(0, depth - 1);
+    if (!depth) document.body.classList.remove("dropping");
+  });
+  document.addEventListener("dragover", (event) => {
+    if (hasFiles(event)) event.preventDefault(); // allows the drop
+  });
+  document.addEventListener("drop", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault(); // the browser would open the file instead
+    depth = 0;
+    document.body.classList.remove("dropping");
+    copyVideos([...event.dataTransfer.files]);
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------

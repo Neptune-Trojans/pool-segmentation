@@ -40,8 +40,9 @@ python -m pool_segmentation.model train                       # 4. train on the 
 ```
 
 Steps 1 and 2 can also be done in the browser: the Labels page's **+ Add videos** (http://127.0.0.1:8001/add) lists
-the videos in a folder, picks frames from the ones you tick at the sample rate you choose, and lets your newest
-trained model label them (`--models`, `--videos` to point it at your folders).
+the videos in a folder (or takes video files you choose or drop on it), picks frames from the ones you tick at the
+sample rate you choose, and lets your newest trained model label them (`--models`, `--videos` to point it at your
+folders).
 
 The first time there is no trained model: skip step 2 and draw the water and ropes on the Labels page. About 100
 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After that, each round's model

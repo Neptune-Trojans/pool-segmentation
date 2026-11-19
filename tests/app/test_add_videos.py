@@ -1,5 +1,6 @@
-"""Add videos page API: the videos in a folder with their frames in the dataset, adding them in the background (pick
-frames, then the first labels from a trained model; a stand-in model here), cancel. Also removing a frame."""
+"""Add videos page API: the videos in a folder with their frames in the dataset (or a video's folder), video files
+copied to the videos folder, adding them in the background (pick frames, then the first labels from a trained model;
+a stand-in model here), cancel. Also removing a frame."""
 
 import threading
 import time
@@ -91,6 +92,62 @@ def test_folder_lists_videos_with_their_frames_in_the_dataset_and_the_new_ones(s
     assert listing["videos"][0]["info"] == {"fps": 30.0, "width": 64, "height": 48, "frame_count": 60}
     at_one_second = client.get("/api/add/folder", params={"path": str(videos), "every_seconds": 1}).json()
     assert [v["new_frames"] for v in at_one_second["videos"]] == [0, 2]
+
+
+def test_a_video_path_opens_its_folder_with_the_video_selected(setup):
+    client, _, videos, _ = setup
+
+    listing = client.get("/api/add/folder", params={"path": str(videos / "IMG_2.mp4")}).json()
+
+    assert listing["folder"] == str(videos.resolve())
+    assert listing["selected"] == str((videos / "IMG_2.mp4").resolve())
+    assert [v["file"] for v in listing["videos"]] == ["IMG_1.mp4", "IMG_2.mp4"]
+    assert client.get("/api/add/folder").json()["selected"] is None  # a folder: nothing selected
+    assert client.get("/api/add/folder", params={"path": str(videos / "notes.txt")}).status_code == 404
+
+
+def test_a_video_file_is_copied_to_the_videos_folder(tmp_path, make_video):
+    source = make_video(tmp_path / "phone" / "IMG_9.mp4", frames=60)
+    videos = tmp_path / "data" / "input"  # made on the first copy
+    client = TestClient(create_app(tmp_path / "labels", models_dir=tmp_path / "none", videos_dir=videos),
+                        base_url="http://127.0.0.1")
+    assert client.get("/api/add").json()["upload_folder"] == str(videos.resolve())
+
+    copied = client.put("/api/add/upload", params={"name": "IMG_9.mp4"}, content=source.read_bytes())
+
+    assert copied.status_code == 200
+    assert copied.json() == {"path": str(videos.resolve() / "IMG_9.mp4"), "size": source.stat().st_size}
+    assert (videos / "IMG_9.mp4").read_bytes() == source.read_bytes()
+    assert [p.name for p in videos.iterdir()] == ["IMG_9.mp4"]  # no partial file left
+    listing = client.get("/api/add/folder", params={"path": copied.json()["path"], "every_seconds": 1}).json()
+    assert [(v["file"], v["new_frames"]) for v in listing["videos"]] == [("IMG_9.mp4", 2)]
+
+
+def test_a_copy_never_replaces_a_file(setup):
+    client, _, videos, _ = setup
+    before = (videos / "IMG_1.mp4").read_bytes()
+
+    response = client.put("/api/add/upload", params={"name": "IMG_1.mp4"}, content=b"another video")
+
+    assert response.status_code == 409 and "exists already" in response.json()["detail"]
+    assert (videos / "IMG_1.mp4").read_bytes() == before
+
+
+@pytest.mark.parametrize("name, content", [
+    ("../IMG_9.mp4", b"video"),
+    ("pool B/IMG_9.mp4", b"video"),
+    ("..\\IMG_9.mp4", b"video"),
+    (".IMG_9.mp4", b"video"),
+    ("notes.txt", b"video"),
+    ("IMG_9", b"video"),
+    ("IMG_9.mp4", b""),  # empty
+])
+def test_a_copy_needs_a_plain_video_file_name_and_content(setup, name, content):
+    client, _, videos, _ = setup
+    before = sorted(p.relative_to(videos.parent) for p in videos.parent.rglob("*"))
+
+    assert client.put("/api/add/upload", params={"name": name}, content=content).status_code == 400
+    assert sorted(p.relative_to(videos.parent) for p in videos.parent.rglob("*")) == before  # nothing written
 
 
 @pytest.mark.parametrize("params, status", [

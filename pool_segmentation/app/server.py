@@ -8,16 +8,17 @@ Start it with `python -m pool_segmentation.app`. Another app can show the pages 
 The pages use relative links only, so they work at the root and under such a path.
 """
 
+import os
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from pool_segmentation.app.add_videos import VideoAdder, is_video, list_folder, thumbnail
+from pool_segmentation.app.add_videos import VIDEO_SUFFIXES, VideoAdder, is_video, list_folder, thumbnail
 from pool_segmentation.labeling.dataset import Dataset
 from pool_segmentation.labeling.frames import EVERY_SECONDS, MAX_PER_VIDEO
 from pool_segmentation.labeling.labels import CLASSES, FrameLabels
@@ -40,6 +41,12 @@ class EditWaterRequest(BaseModel):
     add: list[list[float]]  # the polygon to merge into the water
 
 
+def is_video_name(name: str) -> bool:
+    """A plain file name (no folder, not hidden) with a video's extension."""
+    plain = name == Path(name).name and "\\" not in name and not name.startswith(".")
+    return plain and Path(name).suffix.lower() in VIDEO_SUFFIXES
+
+
 class AddVideosRequest(BaseModel):
     videos: list[str]  # absolute paths, as the Add videos page lists them
     every_seconds: float = Field(EVERY_SECONDS, gt=0, le=MAX_EVERY_SECONDS)
@@ -51,7 +58,8 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
                models_dir: str | Path = MODELS_DIR, videos_dir: str | Path = VIDEOS_DIR) -> FastAPI:
     """The Labels and Add videos pages for the labeling dataset in `labels_dir`. `home`: (text, url) of a link back to
     the app that shows the pages, e.g. ("← Videos", "/"); none on its own. `models_dir`: the training runs, for the
-    first labels of new frames. `videos_dir`: the folder the Add videos page opens first."""
+    first labels of new frames. `videos_dir`: the folder the Add videos page opens first, and where video files chosen
+    or dropped on it are copied (made on the first copy)."""
     dataset = Dataset(labels_dir)
     models_dir, videos_dir = Path(models_dir), Path(videos_dir)
     adder = VideoAdder(dataset, models_dir)
@@ -140,23 +148,58 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
     def add_options() -> dict:
         """What the Add videos page starts with: the folder to open, the trained models (newest first), the default
         sample rate, the job running or last run."""
-        return {"folder": str(start_folder()), "models": list_runs(models_dir), "models_dir": str(models_dir),
+        return {"folder": str(start_folder()), "upload_folder": str(videos_dir.resolve()),
+                "models": list_runs(models_dir), "models_dir": str(models_dir),
                 "dataset": str(dataset.root), "defaults": {"every_seconds": EVERY_SECONDS, "max_per_video": MAX_PER_VIDEO},
                 "home": {"text": home[0], "url": home[1]} if home else None, "job": adder.status()}
 
     @app.get("/api/add/folder")
     def add_folder(path: str | None = None, every_seconds: float = EVERY_SECONDS, max_per_video: int = MAX_PER_VIDEO) -> dict:
         """Subfolders and videos of `path` (default: the videos folder), each video with its frames in the dataset
-        and the new frames picking it would add at this sample rate."""
+        and the new frames picking it would add at this sample rate. `path` can also be a video: its folder, with
+        the video as `selected`."""
         if not (0 < every_seconds <= MAX_EVERY_SECONDS and 1 <= max_per_video <= MAX_FRAMES_PER_VIDEO):
             raise HTTPException(400, "every_seconds or max_per_video is out of range")
         folder = (Path(path).expanduser() if path else start_folder()).resolve()
+        selected = None
+        if folder.is_file():
+            if not is_video(folder):
+                raise HTTPException(404, f"Not a folder or a video ({', '.join(sorted(VIDEO_SUFFIXES))}): {folder}")
+            selected, folder = str(folder), folder.parent
         if not folder.is_dir():
-            raise HTTPException(404, f"Folder not found: {folder}")
+            raise HTTPException(404, f"Folder or video not found: {folder}")
         try:
-            return list_folder(folder, dataset, every_seconds, max_per_video)
+            return {**list_folder(folder, dataset, every_seconds, max_per_video), "selected": selected}
         except PermissionError as e:
             raise HTTPException(403, f"Can't read {folder}: {e.strerror}") from e
+
+    @app.put("/api/add/upload")
+    async def upload_video(request: Request, name: str) -> dict:
+        """Copy a video file chosen or dropped on the page (the request's body) to the videos folder, as `name`.
+        Never replaces a file: 409 if the folder has one with that name."""
+        if not is_video_name(name):
+            raise HTTPException(400, f"Not a video file name ({', '.join(sorted(VIDEO_SUFFIXES))}): {name}")
+        folder = videos_dir.resolve()
+        target = folder / name
+        if target.exists():
+            raise HTTPException(409, f"{target} exists already: open that folder and tick it there")
+        folder.mkdir(parents=True, exist_ok=True)
+        # To a hidden partial file first, then renamed: the folder never lists half a video
+        partial = folder / f".{name}.part"
+        try:
+            size = 0
+            with partial.open("wb") as out:
+                async for chunk in request.stream():
+                    out.write(chunk)
+                    size += len(chunk)
+            if not size:
+                raise HTTPException(400, f"{name} is empty")
+            if target.exists():  # copied meanwhile by another request
+                raise HTTPException(409, f"{target} exists already: open that folder and tick it there")
+            os.replace(partial, target)
+        finally:
+            partial.unlink(missing_ok=True)
+        return {"path": str(target), "size": size}
 
     @app.get("/api/add/thumbnail")
     def video_thumbnail(path: str) -> Response:

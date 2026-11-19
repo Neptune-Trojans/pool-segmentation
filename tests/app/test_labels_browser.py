@@ -1,5 +1,6 @@
 """Browser tests of the Labels page: drag a rope corner, save, add a rope and water by clicking dots. Also: the page
-inside another app, under a path of its own, and the Add videos page: add a video, check its new frames, remove one.
+inside another app, under a path of its own, and the Add videos page: add a video, check its new frames, remove one;
+choose a video file (copied to the videos folder) or open one by its path.
 
 Drives headless Chrome (DevTools protocol) against the page. Skipped without Chrome (or set CHROME_PATH). Leave it
 out with: pytest -m "not browser"
@@ -91,15 +92,21 @@ def server(tmp_path_factory):
         thread.join(timeout=5)
 
 
+def write_video(path: Path, frames: int = 120) -> Path:
+    """A 4 s video (30 fps) whose frames get brighter."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (WIDTH, HEIGHT))
+    for i in range(frames):
+        writer.write(np.full((HEIGHT, WIDTH, 3), 60 + i, np.uint8))
+    writer.release()
+    return path
+
+
 @pytest.fixture(scope="module")
 def add_server(tmp_path_factory):
     """The pages for an empty dataset, with a 4 s video (clip.mp4) to add and no trained model: (url, labels root)."""
     root = tmp_path_factory.mktemp("adding")
-    (root / "videos").mkdir()
-    writer = cv2.VideoWriter(str(root / "videos" / "clip.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (WIDTH, HEIGHT))
-    for i in range(120):
-        writer.write(np.full((HEIGHT, WIDTH, 3), 60 + i, np.uint8))
-    writer.release()
+    write_video(root / "videos" / "clip.mp4")
     url, app_server, thread = serve(create_app(root / "labels", models_dir=root / "models", videos_dir=root / "videos"))
     yield url, root / "labels"
     app_server.should_exit = True
@@ -351,3 +358,42 @@ def test_add_a_video_then_check_and_remove_its_frames(chrome, add_server):
         "clip_000045", "clip_000075", "clip_000105"]
     assert [f.name for f in dataset.frames()] == ["clip_000045", "clip_000075", "clip_000105"]
     assert dataset.removed() == {"clip_000015"}
+
+
+def test_choose_a_video_file_or_open_one_by_its_path(chrome, add_server, tmp_path):
+    js = chrome.js
+    url, labels_root = add_server
+    videos = labels_root.parent / "videos"
+    source = write_video(tmp_path / "phone" / "swim.mp4")
+    ticked = lambda: js("[...document.querySelectorAll('.video-row.selected .video-file')].map((e) => e.textContent)")
+
+    chrome.cdp("Page.navigate", url=f"{url}/add")
+    chrome.wait_for("window.__add?.listing() ?? null", lambda listing: listing is not None)
+    assert js("document.getElementById('upload-folder').textContent") == str(videos.resolve())
+
+    # Choose files…: the file is copied to the videos folder, which opens with it ticked
+    document = chrome.cdp("DOM.getDocument")
+    node = chrome.cdp("DOM.querySelector", nodeId=document["root"]["nodeId"], selector="#file-input")
+    chrome.cdp("DOM.setFileInputFiles", files=[str(source)], nodeId=node["nodeId"])
+    chrome.wait_for("window.__add.listing().videos.map((v) => v.file)", lambda files: "swim.mp4" in files)
+    assert (videos / "swim.mp4").read_bytes() == source.read_bytes()
+    assert chrome.wait_for("document.getElementById('upload').hidden", bool)
+    assert ticked() == ["swim.mp4"]
+    assert "new frames from 1 video" in js("document.getElementById('add-summary').textContent")
+
+    # The same file again (unticked meanwhile): not copied again (same name and size), ticked again
+    before = (videos / "swim.mp4").stat().st_mtime_ns
+    js("document.querySelector('.video-row.selected .video-label').click()")
+    assert ticked() == []
+    chrome.cdp("DOM.setFileInputFiles", files=[str(source)], nodeId=node["nodeId"])
+    assert chrome.wait_for("[...document.querySelectorAll('.video-row.selected .video-file')].map((e) => e.textContent)",
+                           lambda files: files == ["swim.mp4"]) == ["swim.mp4"]
+    assert (videos / "swim.mp4").stat().st_mtime_ns == before
+    assert js("document.getElementById('error').hidden")
+
+    # A video by its path in the path field: its folder opens with it ticked too
+    js(f"""(() => {{ document.getElementById('folder-path').value = {json.dumps(str(videos / 'clip.mp4'))};
+      document.getElementById('folder-form').requestSubmit(); }})()""")
+    assert chrome.wait_for("[...document.querySelectorAll('.video-row.selected .video-file')].map((e) => e.textContent)",
+                           lambda files: files == ["clip.mp4", "swim.mp4"]) == ["clip.mp4", "swim.mp4"]
+    assert js("document.getElementById('folder-path').value") == str(videos.resolve())

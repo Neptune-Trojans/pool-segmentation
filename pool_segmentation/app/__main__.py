@@ -10,7 +10,8 @@ def main() -> None:
     parser.add_argument("--labels", default="data/labels/pool", help="Labeling dataset (default: data/labels/pool)")
     parser.add_argument("--models", default="data/models/pool",
                         help="Training runs: the newest labels new frames (default: data/models/pool)")
-    parser.add_argument("--videos", default="data/input", help="Folder the Add videos page opens first (default: data/input)")
+    parser.add_argument("--videos", default="data/input",
+                        help="Folder the Add videos page opens first, and copies chosen video files to (default: data/input)")
     parser.add_argument("--port", type=int, default=8001, help="Port to listen on (default: 8001)")
     args = parser.parse_args()
 
