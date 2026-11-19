@@ -25,11 +25,12 @@ it.
 - Design and status: `docs/model.md` (network, training, results) and `docs/labeling.md` (classes, the model's first labels, the
   Labels page). Keep them up to date
 - `pool_segmentation/model/`: the network (`python -m pool_segmentation.model train`); `labeling/`: training data
-  (`python -m pool_segmentation.labeling`); `app/`: the Labels page (`python -m pool_segmentation.app`)
+  (`python -m pool_segmentation.labeling`); `app/`: the Labels and Add videos pages (`python -m pool_segmentation.app`)
 - Import torch only where a model is needed: `import pool_segmentation`, the labeling commands and the Labels page
   start without it (`PoolModel` is loaded on first use; `tests/test_package.py` checks this)
-- The Labels page uses relative links only (`static/...`, `api/...`): it runs on its own at `/` and inside another app
-  under a path (swim-analytics: `/labels/`). Plain HTML / CSS / JS (ES modules), no build step, no framework
+- The Labels and Add videos pages use relative links only (`static/...`, `api/...`): they run on their own at `/` and
+  inside another app under a path (swim-analytics: `/labels/`). Plain HTML / CSS / JS (ES modules), no build step,
+  no framework
 - Paths default to `data/labels/pool/` and `data/models/pool/`, relative to the folder the command runs in
 - `data/` stays local (git-ignored): the labeling dataset holds frames of real people
 

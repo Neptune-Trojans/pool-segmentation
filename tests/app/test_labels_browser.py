@@ -1,5 +1,5 @@
 """Browser tests of the Labels page: drag a rope corner, save, add a rope and water by clicking dots. Also: the page
-inside another app, under a path of its own.
+inside another app, under a path of its own, and the Add videos page: add a video, check its new frames, remove one.
 
 Drives headless Chrome (DevTools protocol) against the page. Skipped without Chrome (or set CHROME_PATH). Leave it
 out with: pytest -m "not browser"
@@ -89,6 +89,21 @@ def server(tmp_path_factory):
     for _, app_server, thread in servers:
         app_server.should_exit = True
         thread.join(timeout=5)
+
+
+@pytest.fixture(scope="module")
+def add_server(tmp_path_factory):
+    """The pages for an empty dataset, with a 4 s video (clip.mp4) to add and no trained model: (url, labels root)."""
+    root = tmp_path_factory.mktemp("adding")
+    (root / "videos").mkdir()
+    writer = cv2.VideoWriter(str(root / "videos" / "clip.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (WIDTH, HEIGHT))
+    for i in range(120):
+        writer.write(np.full((HEIGHT, WIDTH, 3), 60 + i, np.uint8))
+    writer.release()
+    url, app_server, thread = serve(create_app(root / "labels", models_dir=root / "models", videos_dir=root / "videos"))
+    yield url, root / "labels"
+    app_server.should_exit = True
+    thread.join(timeout=5)
 
 
 class Chrome:
@@ -286,3 +301,53 @@ def test_inside_another_app_the_page_works_and_links_back(chrome, server):
     chrome.key("s", 83)  # saving goes to the other app's /labels/api/...
     assert chrome.wait_for("document.getElementById('message').textContent", lambda t: t.startswith("Saved")).startswith("Saved")
     assert Dataset(root / "mounted").labels(LABEL_B).status == "fixed"
+
+
+def test_add_a_video_then_check_and_remove_its_frames(chrome, add_server):
+    js = chrome.js
+    url, labels_root = add_server
+    dataset = Dataset(labels_root)
+    text = lambda id_: js(f"document.getElementById('{id_}').textContent")
+
+    # The empty Labels page points to the Add videos page
+    chrome.cdp("Page.navigate", url=f"{url}/")
+    assert chrome.wait_for("!document.getElementById('no-dataset').hidden", bool)
+    assert js("document.querySelector('#no-dataset a[href=\"add\"]') !== null")
+
+    chrome.cdp("Page.navigate", url=f"{url}/add")
+    assert chrome.wait_for("window.__add?.listing()?.videos.length ?? 0", lambda n: n == 1) == 1
+    assert js("document.querySelector('.video-file').textContent") == "clip.mp4"
+    assert js("document.querySelector('.new-frames').textContent") == "+2 new frames"  # one every 2 s: 2 of 4 s
+    assert js("[...document.getElementById('model').options].map((o) => o.textContent)") == ["None: draw them by hand"]
+    assert "No trained model" in text("model-note")
+    assert js("document.getElementById('add').disabled")  # nothing selected
+
+    # One frame every second: the new frames are counted again
+    js("(() => { const e = document.getElementById('every'); e.value = '1'; e.dispatchEvent(new Event('input')); })()")
+    assert chrome.wait_for("document.querySelector('.new-frames').textContent", lambda t: t == "+4 new frames") == "+4 new frames"
+    js("document.querySelector('.video-label').click()")  # a click anywhere on the row selects the video
+    assert text("add-summary") == "4 new frames from 1 video" and not js("document.getElementById('add').disabled")
+
+    js("document.getElementById('add').click()")
+    job = chrome.wait_for("window.__add.job()", lambda j: j is not None and j["state"] != "running")
+    assert job["state"] == "done" and job["added"] == 4
+    assert text("job-text") == "Done: 4 frames added, without labels: draw them on the Labels page."
+    assert chrome.wait_for("document.querySelector('.new-frames').textContent", lambda t: t == "nothing new") == "nothing new"
+    assert js("document.querySelector('.pill').textContent") == "4 frames in the dataset"
+    assert [f.name for f in dataset.frames()] == ["clip_000015", "clip_000045", "clip_000075", "clip_000105"]
+
+    # Check the new frames: the Labels page opens the first, showing the frames not checked
+    js("document.getElementById('check').click()")
+    assert chrome.wait_for("window.__labels?.frame() ?? null", lambda name: name == "clip_000015") == "clip_000015"
+    assert js("document.getElementById('filter').value") == "todo"
+    assert js("location.search") == "?frame=clip_000015&filter=todo"
+
+    # Remove it: the next frame opens, and the frame is gone from the dataset
+    js("window.confirm = () => true")
+    js("document.getElementById('remove').click()")
+    assert chrome.wait_for("window.__labels.frame()", lambda name: name == "clip_000045") == "clip_000045"
+    assert text("message") == "Removed clip_000015."
+    assert js("[...document.querySelectorAll('.frame-item-name')].map((e) => e.textContent)") == [
+        "clip_000045", "clip_000075", "clip_000105"]
+    assert [f.name for f in dataset.frames()] == ["clip_000045", "clip_000075", "clip_000105"]
+    assert dataset.removed() == {"clip_000015"}

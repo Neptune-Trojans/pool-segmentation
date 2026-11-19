@@ -1,26 +1,33 @@
-"""The Labels page: check and fix the labels of the frames picked for training (docs/labeling.md).
+"""The Labels page: check and fix the labels of the frames picked for training, and the Add videos page: pick frames
+from new videos and let the newest trained model label them (docs/labeling.md).
 
-Start it with `python -m pool_segmentation.app`. Another app can show the page too, under a path of its own:
+Start it with `python -m pool_segmentation.app`. Another app can show the pages too, under a path of its own:
 
     app.mount("/labels", create_app("data/labels/pool", home=("← Videos", "/")))
 
-The page uses relative links only, so it works at the root and under such a path.
+The pages use relative links only, so they work at the root and under such a path.
 """
 
 from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from pool_segmentation.app.add_videos import VideoAdder, is_video, list_folder, thumbnail
 from pool_segmentation.labeling.dataset import Dataset
+from pool_segmentation.labeling.frames import EVERY_SECONDS, MAX_PER_VIDEO
 from pool_segmentation.labeling.labels import CLASSES, FrameLabels
 from pool_segmentation.labeling.shapes import add_water
+from pool_segmentation.model.runs import MODELS_DIR, list_runs
 
 STATIC_DIR = Path(__file__).parent / "static"
+VIDEOS_DIR = Path("data/input")
+MAX_EVERY_SECONDS = 3600.0
+MAX_FRAMES_PER_VIDEO = 1000
 
 
 class SaveLabelsRequest(BaseModel):
@@ -33,11 +40,23 @@ class EditWaterRequest(BaseModel):
     add: list[list[float]]  # the polygon to merge into the water
 
 
-def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str] | None = None) -> FastAPI:
-    """The Labels page for the labeling dataset in `labels_dir`. `home`: (text, url) of a link back to the app that
-    shows the page, e.g. ("← Videos", "/"); none on its own."""
+class AddVideosRequest(BaseModel):
+    videos: list[str]  # absolute paths, as the Add videos page lists them
+    every_seconds: float = Field(EVERY_SECONDS, gt=0, le=MAX_EVERY_SECONDS)
+    max_per_video: int = Field(MAX_PER_VIDEO, ge=1, le=MAX_FRAMES_PER_VIDEO)
+    model: str | None = "latest"  # the training run that makes the first labels, "latest", or None: none
+
+
+def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str] | None = None,
+               models_dir: str | Path = MODELS_DIR, videos_dir: str | Path = VIDEOS_DIR) -> FastAPI:
+    """The Labels and Add videos pages for the labeling dataset in `labels_dir`. `home`: (text, url) of a link back to
+    the app that shows the pages, e.g. ("← Videos", "/"); none on its own. `models_dir`: the training runs, for the
+    first labels of new frames. `videos_dir`: the folder the Add videos page opens first."""
     dataset = Dataset(labels_dir)
+    models_dir, videos_dir = Path(models_dir), Path(videos_dir)
+    adder = VideoAdder(dataset, models_dir)
     app = FastAPI(title="pool-segmentation")
+    app.state.adder = adder
     # Only requests addressed to this computer: a web page on another site can't reach the server by pointing its
     # own domain name at 127.0.0.1 (DNS rebinding)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
@@ -104,9 +123,93 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
                           [tuple(pt) for pt in request.add], frame.width, frame.height)
         return {"water": [[[round(x, 1), round(y, 1)] for x, y in polygon] for polygon in water]}
 
+    @app.delete("/api/labels/{name}")
+    def remove_frame(name: str) -> dict:
+        """Remove a frame from the dataset (image, labels, mask); picking frames again skips it."""
+        labeled_frame(name)
+        dataset.remove_frame(name)
+        return {"counts": dataset.status_counts()}
+
+    # -----------------------------------------------------------------------------------------------------------
+    # Add videos page: videos in a folder, adding them in the background (add_videos.py)
+
+    def start_folder() -> Path:
+        return (videos_dir if videos_dir.is_dir() else Path.cwd()).resolve()
+
+    @app.get("/api/add")
+    def add_options() -> dict:
+        """What the Add videos page starts with: the folder to open, the trained models (newest first), the default
+        sample rate, the job running or last run."""
+        return {"folder": str(start_folder()), "models": list_runs(models_dir), "models_dir": str(models_dir),
+                "dataset": str(dataset.root), "defaults": {"every_seconds": EVERY_SECONDS, "max_per_video": MAX_PER_VIDEO},
+                "home": {"text": home[0], "url": home[1]} if home else None, "job": adder.status()}
+
+    @app.get("/api/add/folder")
+    def add_folder(path: str | None = None, every_seconds: float = EVERY_SECONDS, max_per_video: int = MAX_PER_VIDEO) -> dict:
+        """Subfolders and videos of `path` (default: the videos folder), each video with its frames in the dataset
+        and the new frames picking it would add at this sample rate."""
+        if not (0 < every_seconds <= MAX_EVERY_SECONDS and 1 <= max_per_video <= MAX_FRAMES_PER_VIDEO):
+            raise HTTPException(400, "every_seconds or max_per_video is out of range")
+        folder = (Path(path).expanduser() if path else start_folder()).resolve()
+        if not folder.is_dir():
+            raise HTTPException(404, f"Folder not found: {folder}")
+        try:
+            return list_folder(folder, dataset, every_seconds, max_per_video)
+        except PermissionError as e:
+            raise HTTPException(403, f"Can't read {folder}: {e.strerror}") from e
+
+    @app.get("/api/add/thumbnail")
+    def video_thumbnail(path: str) -> Response:
+        video = Path(path)
+        if not video.is_absolute() or not is_video(video):
+            raise HTTPException(404, f"Not a video: {path}")
+        try:
+            return Response(thumbnail(video), media_type="image/jpeg")
+        except OSError as e:
+            raise HTTPException(404, str(e)) from e
+
+    @app.post("/api/add")
+    def add_videos(request: AddVideosRequest) -> dict:
+        """Start adding videos: pick their frames, then the model's first labels. 409 while a job is running."""
+        videos = [Path(v) for v in request.videos]
+        if not videos:
+            raise HTTPException(400, "No videos selected")
+        for video in videos:
+            if not video.is_absolute() or not is_video(video):
+                raise HTTPException(400, f"Not a video: {video}")
+        names = [v.stem for v in videos]
+        repeated = sorted({n for n in names if names.count(n) > 1})
+        if repeated:
+            raise HTTPException(400, f"Several videos named {', '.join(repeated)}: their frames would get the same "
+                                     f"names. Add them one at a time")
+        runs = list_runs(models_dir)
+        model = runs[0] if request.model == "latest" and runs else request.model
+        if model is not None and model not in runs:
+            raise HTTPException(400, f"No trained model '{request.model}' in {models_dir}")
+        try:
+            job = adder.start(videos, request.every_seconds, request.max_per_video, model)
+        except RuntimeError as e:
+            raise HTTPException(409, str(e)) from e
+        return {"job": job}
+
+    @app.get("/api/add/job")
+    def add_job() -> dict:
+        return {"job": adder.status()}
+
+    @app.post("/api/add/job/cancel")
+    def cancel_add_job() -> dict:
+        return {"job": adder.cancel()}
+
+    # -----------------------------------------------------------------------------------------------------------
+    # Pages
+
     @app.get("/")
     def labels_page() -> FileResponse:
         return FileResponse(STATIC_DIR / "labels.html")
+
+    @app.get("/add")
+    def add_page() -> FileResponse:
+        return FileResponse(STATIC_DIR / "add.html")
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

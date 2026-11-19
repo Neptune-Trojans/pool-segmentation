@@ -12,6 +12,7 @@ from pathlib import Path
 
 from pool_segmentation.labeling.commands import auto_label, pick, write_masks
 from pool_segmentation.labeling.dataset import Dataset
+from pool_segmentation.labeling.frames import EVERY_SECONDS, MAX_PER_VIDEO
 
 DEFAULT_DATASET = "data/labels/pool"
 
@@ -23,8 +24,8 @@ def main() -> None:
 
     p = commands.add_parser("pick", help="Pick frames from videos")
     p.add_argument("videos", nargs="+", type=Path)
-    p.add_argument("--every", type=float, default=2.0, help="Seconds between picked frames (default 2)")
-    p.add_argument("--max-per-video", type=int, default=25, help="At most this many frames per video (default 25)")
+    p.add_argument("--every", type=float, default=EVERY_SECONDS, help=f"Seconds between picked frames (default {EVERY_SECONDS:g})")
+    p.add_argument("--max-per-video", type=int, default=MAX_PER_VIDEO, help=f"At most this many frames per video (default {MAX_PER_VIDEO})")
 
     a = commands.add_parser("auto", help="First labels (water) from a trained pool model for frames that have none")
     a.add_argument("--redo", action="store_true", help="Also label the frames not checked yet again (checked labels are kept)")

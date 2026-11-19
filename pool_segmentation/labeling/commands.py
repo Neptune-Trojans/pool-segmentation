@@ -2,6 +2,7 @@
 trained pool model, training masks."""
 
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -39,15 +40,19 @@ def pick(dataset: Dataset, videos: list[Path], every_seconds: float, max_per_vid
 
 
 def auto_label(dataset: Dataset, redo: bool = False, labeler: Labeler | None = None, model: str = "latest",
-               models_dir: str | Path = MODELS_DIR) -> int:
+               models_dir: str | Path = MODELS_DIR, only: set[str] | None = None,
+               progress: Callable[[int, int], None] | None = None) -> int:
     """Label every frame that has no labels yet (with `redo`: also those not checked yet, again), with `labeler` or else
-    the trained pool model `model` (create_labeler). Checked labels are never replaced. Returns how many were labeled."""
+    the trained pool model `model` (create_labeler). `only`: the names of the frames to consider (default: all).
+    Checked labels are never replaced. `progress(frames done, frames to label)` is called after each frame (default:
+    printed); if it raises, labeling stops and the frames labeled so far keep their labels. Returns how many were
+    labeled."""
 
     def to_label(frame) -> bool:
         labels = dataset.labels(frame.name)
         return labels is None or (redo and labels.status not in REVIEWED)
 
-    todo = [f for f in dataset.frames() if to_label(f)]
+    todo = [f for f in dataset.frames() if (only is None or f.name in only) and to_label(f)]
     if not todo:
         print("Every frame already has labels (use --redo to label the ones not checked yet again)")
         return 0
@@ -56,17 +61,24 @@ def auto_label(dataset: Dataset, redo: bool = False, labeler: Labeler | None = N
     start, done = time.time(), 0
     for k, frame in enumerate(todo, 1):
         image = cv2.imread(str(dataset.image_path(frame.name)))
-        if image is None:
+        if image is None and dataset.frame(frame.name) is not None:
             raise OSError(f"Cannot read {dataset.image_path(frame.name)}")
-        water, ropes = labeler.label(image)
-        if not to_label(frame):  # checked on the Labels page meanwhile
-            continue
-        dataset.save(FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image, width=frame.width,
-                                 height=frame.height, status="auto", water=water, ropes=ropes, source=labeler.name))
-        done += 1
-        left = (len(todo) - k) * (time.time() - start) / k
-        print(f"  {k}/{len(todo)} {frame.name}: {len(water)} water polygon(s), {len(ropes)} rope(s)"
-              f"  (about {left / 60:.0f} min left)", flush=True)
+        note = "removed meanwhile"
+        if image is not None:
+            water, ropes = labeler.label(image)
+            note = "checked meanwhile"
+            # Checked or removed on the Labels page while the model was labeling it: that stays
+            if to_label(frame) and dataset.frame(frame.name) is not None:
+                dataset.save(FrameLabels(video=frame.video, frame_idx=frame.frame_idx, image=frame.image,
+                                         width=frame.width, height=frame.height, status="auto", water=water,
+                                         ropes=ropes, source=labeler.name))
+                done += 1
+                note = f"{len(water)} water polygon(s), {len(ropes)} rope(s)"
+        if progress:
+            progress(k, len(todo))
+        else:
+            left = (len(todo) - k) * (time.time() - start) / k
+            print(f"  {k}/{len(todo)} {frame.name}: {note}  (about {left / 60:.0f} min left)", flush=True)
     return done
 
 

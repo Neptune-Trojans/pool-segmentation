@@ -1,6 +1,7 @@
 import pytest
 
 from pool_segmentation import find_model
+from pool_segmentation.model.runs import list_runs
 
 
 def test_latest_model_is_the_newest_training_run(tmp_path):
@@ -16,3 +17,5 @@ def test_latest_model_is_the_newest_training_run(tmp_path):
         find_model("20261117-090000", tmp_path)
     with pytest.raises(FileNotFoundError, match="train one"):
         find_model("latest", tmp_path / "empty")
+    assert list_runs(tmp_path) == ["20261116-224516", "20261116-223804"]  # finished runs, newest first
+    assert list_runs(tmp_path / "empty") == []

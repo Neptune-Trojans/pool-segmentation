@@ -39,18 +39,23 @@ python -m pool_segmentation.app                               # 3. check and fix
 python -m pool_segmentation.model train                       # 4. train on the checked frames (about 5 min, M4 Pro)
 ```
 
+Steps 1 and 2 can also be done in the browser: the Labels page's **+ Add videos** (http://127.0.0.1:8001/add) lists
+the videos in a folder, picks frames from the ones you tick at the sample rate you choose, and lets your newest
+trained model label them (`--models`, `--videos` to point it at your folders).
+
 The first time there is no trained model: skip step 2 and draw the water and ropes on the Labels page. About 100
 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After that, each round's model
 labels the next frames' water, and you only fix it and draw the ropes. Details:
 [docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how the model's first labels are made, the Labels page) and
 [docs/model.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/model.md) (network, training, results).
 
-The Labels page can also be shown inside another FastAPI app, under a path of its own:
+The Labels and Add videos pages can also be shown inside another FastAPI app, under a path of its own:
 
 ```python
 from pool_segmentation.app.server import create_app
 
-app.mount("/labels", create_app("data/labels/pool", home=("← Videos", "/")))
+app.mount("/labels", create_app("data/labels/pool", home=("← Videos", "/"),
+                                models_dir="data/models/pool", videos_dir="data/input"))
 ```
 
 ## Layout
@@ -62,7 +67,7 @@ pool_segmentation/
   video.py         # read a video's frames
   model/           # the network: network.py, data.py, train.py, predict.py, runs.py (python -m pool_segmentation.model)
   labeling/        # training data: frames, labels, the model's first labels, shapes (python -m pool_segmentation.labeling)
-  app/             # the Labels page: server.py + static/ (python -m pool_segmentation.app)
+  app/             # the Labels and Add videos pages: server.py, add_videos.py + static/ (python -m pool_segmentation.app)
 docs/              # model.md, labeling.md
 tests/             # same layout as pool_segmentation/
 ```

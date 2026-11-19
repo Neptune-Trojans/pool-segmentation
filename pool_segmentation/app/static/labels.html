@@ -14,7 +14,10 @@
     <span class="mode">Labels</span>
     <strong id="frame-name" class="frame-name"></strong>
     <span id="unsaved" class="unsaved" hidden>● not saved</span>
-    <a id="home" class="back" hidden></a>
+    <nav class="topbar-links">
+      <a class="nav-link" href="add" title="Pick frames from new videos for the dataset">+ Add videos</a>
+      <a id="home" class="nav-link" hidden></a>
+    </nav>
   </header>
 
   <div id="error" class="banner" role="alert" hidden></div>
@@ -48,6 +51,7 @@
           <button id="save" class="btn-secondary" type="button" title="Save as checked (S)">Save</button>
         </div>
         <p id="message" class="message" role="status"></p>
+        <button id="remove" class="btn-text danger" type="button" title="Remove this frame from the dataset (a frame not worth training on)">Remove frame…</button>
       </section>
       <section>
         <h2>Shapes</h2>
@@ -80,7 +84,10 @@
 
   <main id="no-dataset" class="empty-dataset" hidden>
     <h1>No frames to label yet</h1>
-    <p class="muted">Pick frames first, and let a trained model label them if you have one (without, draw the water and ropes here):</p>
+    <p class="muted">Pick frames from your videos first; a trained model labels their water if you have one (without,
+      draw the water and ropes here).</p>
+    <p><a class="btn-primary" href="add">+ Add videos</a></p>
+    <p class="muted">Or on the command line:</p>
     <pre class="commands">python -m pool_segmentation.labeling pick data/input/*.MOV
 python -m pool_segmentation.labeling auto</pre>
     <p class="muted">Dataset folder: <code id="dataset-dir"></code></p>

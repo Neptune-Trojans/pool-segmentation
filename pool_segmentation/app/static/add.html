@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add videos · pool-segmentation</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235b9dff'/%3E%3Cpath d='M5 19c3.5-3 7-3 11 0s7.5 3 11 0' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="static/labels.css">
+  <script type="module" src="static/add.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./">pool-segmentation</a>
+    <span class="mode">Add videos</span>
+    <nav class="topbar-links">
+      <a class="nav-link" href="./">Labels</a>
+      <a id="home" class="nav-link" hidden></a>
+    </nav>
+  </header>
+
+  <div id="error" class="banner" role="alert" hidden></div>
+
+  <main class="add-page">
+    <p class="intro muted">Pick frames from new videos for the training data. A trained model labels their water first;
+      you check and fix it, and draw the ropes, on the Labels page.</p>
+
+    <form id="folder-form" class="folder-bar">
+      <button id="folder-up" class="btn-icon" type="button" title="Parent folder" aria-label="Parent folder">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l-7 7h4.5v7h5v-7H19z"/></svg>
+      </button>
+      <input id="folder-path" class="folder-path" type="text" spellcheck="false" autocomplete="off" aria-label="Folder">
+      <button class="btn-secondary" type="submit">Open</button>
+    </form>
+    <nav id="subfolders" class="subfolders" aria-label="Subfolders" hidden></nav>
+
+    <section class="add-settings" aria-label="How to add them">
+      <label class="setting">One frame every
+        <input id="every" type="number" min="0.1" max="3600" step="any" required> s</label>
+      <label class="setting">at most
+        <input id="max-per-video" type="number" min="1" max="1000" step="1" required> per video</label>
+      <label class="setting">First labels
+        <select id="model"></select></label>
+      <p id="model-note" class="setting-note muted" hidden></p>
+    </section>
+
+    <div class="toolbar">
+      <label class="select-all"><input id="select-all" type="checkbox"> <span id="video-count"></span></label>
+      <span class="toolbar-actions">
+        <span id="add-summary" class="add-summary muted"></span>
+        <button id="add" class="btn-primary" type="button" disabled>Add to dataset</button>
+      </span>
+    </div>
+
+    <section id="job" class="job" role="status" hidden>
+      <div class="job-head">
+        <span id="job-text" class="job-text"></span>
+        <button id="cancel" class="btn-secondary" type="button" hidden>Cancel</button>
+        <a id="check" class="btn-primary" hidden>Check the new frames</a>
+      </div>
+      <progress id="job-progress" class="job-progress" max="1"></progress>
+    </section>
+
+    <ul id="videos" class="videos"></ul>
+    <p class="footnote muted">Frames go to <code id="dataset-dir"></code> (a frame's name: video name and frame
+      index). Frames already in the dataset, or removed from it, are skipped: add a video again with a shorter step for
+      more of its frames. Closing this page doesn't stop adding.</p>
+  </main>
+</body>
+</html>

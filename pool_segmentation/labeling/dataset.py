@@ -5,11 +5,14 @@
   labels/<name>.json      the labels: the model's first labels (python -m pool_segmentation.labeling auto), checked
                           and fixed on the Labels page, or drawn there by hand; `status` says which
   masks/<name>.png        training masks drawn from labels/ (one class number per pixel)
+  removed.json            names of frames removed on the Labels page: picking frames again skips them
 
 A frame's name is <video name>_<frame index, 6 digits>, e.g. IMG_4884_000261.
 """
 
 import json
+import os
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -39,6 +42,9 @@ class Dataset:
         self.images = self.root / "images"
         self.labels_dir = self.root / "labels"
         self.masks = self.root / "masks"
+        # frames.json and removed.json are read, changed and written by one thread at a time (the Labels page removes
+        # frames while the Add videos page adds some)
+        self._lock = threading.RLock()
 
     # -- frames --------------------------------------------------------------------------------------------------
 
@@ -53,10 +59,36 @@ class Dataset:
         return next((f for f in self.frames() if f.name == name), None)
 
     def add_frames(self, frames: list[Frame]) -> None:
-        known = {f.name: f for f in self.frames()}
-        known.update({f.name: f for f in frames})
+        with self._lock:
+            known = {f.name: f for f in self.frames()}
+            known.update({f.name: f for f in frames})
+            self._write_json("frames.json", [asdict(f) for f in sorted(known.values(), key=lambda f: f.name)])
+
+    def removed(self) -> set[str]:
+        """Names of the frames removed from the dataset: picking frames again skips them, so they don't come back."""
+        path = self.root / "removed.json"
+        return set(json.loads(path.read_text())) if path.exists() else set()
+
+    def remove_frame(self, name: str) -> bool:
+        """Remove a frame: its entry, image, labels and mask. Its name goes to removed.json, so picking frames again
+        skips it. False if there is no such frame."""
+        with self._lock:
+            frames = self.frames()
+            if not any(f.name == name for f in frames):
+                return False
+            self._write_json("removed.json", sorted(self.removed() | {name}))
+            self._write_json("frames.json", [asdict(f) for f in frames if f.name != name])
+        for path in (self.image_path(name), self.labels_dir / f"{name}.json", self.masks / f"{name}.png"):
+            path.unlink(missing_ok=True)
+        return True
+
+    def _write_json(self, filename: str, data) -> None:
+        # To a temporary file first, then renamed: whoever reads the file meanwhile never gets half of it
         self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / "frames.json").write_text(json.dumps([asdict(f) for f in sorted(known.values(), key=lambda f: f.name)], indent=1))
+        path = self.root / filename
+        temporary = path.with_name(f".{filename}.tmp")
+        temporary.write_text(json.dumps(data, indent=1))
+        os.replace(temporary, path)
 
     def image_path(self, name: str) -> Path:
         return self.images / f"{name}.jpg"

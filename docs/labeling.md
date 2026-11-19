@@ -1,8 +1,8 @@
 # Labeling (training data for the pool segmentation model)
 
 _Agreed: 2026-11-16 (in swim-analytics; moved to this repo 2026-11-18). Status: built (frame picking, first labels
-from the trained model, Labels page, training masks); the first model is trained on 91 checked frames
-(`docs/model.md`)._
+from the trained model, Labels page, Add videos page (2026-11-19), training masks); the first model is trained on 91
+checked frames (`docs/model.md`)._
 
 Goal: a small, fast model that finds the pool's **water** and the **lane ropes** in every frame (swim-analytics uses
 the lanes to join a swimmer's broken tracks). The loop: pick frames from new videos, let the newest trained model
@@ -44,6 +44,7 @@ frames.json             the picked frames: name, video, frame index, size
 images/<name>.jpg       the frames (JPEG, quality 95)
 labels/<name>.json      the labels: the model's first labels (`auto`), which you check and fix, or drawn by hand
 masks/<name>.png        training masks drawn from labels/: one class number per pixel (0, 1, 2)
+removed.json            names of frames removed on the Labels page: picking frames again skips them
 ```
 
 A frame's name is `<video name>_<frame index, 6 digits>`, e.g. `IMG_4884_000261`. A label file, in pixels of the
@@ -70,6 +71,10 @@ save.
 
 ## Steps
 
+In the browser: `python -m pool_segmentation.app` (or swim-analytics at `/labels/`), then **+ Add videos**: tick
+videos, choose the sample rate and the model, Add (steps 1 and 2 in the background), then **Check the new frames**
+(step 3). The same on the command line:
+
 ```bash
 python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames: one every 2 s, at most 25 per video
 python -m pool_segmentation.labeling auto                     # 2. the newest trained model labels their water
@@ -78,7 +83,8 @@ python -m pool_segmentation.labeling masks                    # 4. training mask
 python -m pool_segmentation.labeling status                   # how many frames are checked
 ```
 
-- `pick` skips frames already in the dataset, so it can be run again with more videos or `--every 1`.
+- `pick` skips frames already in the dataset, and frames removed from it, so it can be run again with more videos
+  or `--every 1`.
 - `auto` labels only frames without labels (`--redo`: also those not checked yet, again), with the newest training
   run in `data/models/pool/` (`--model <run>` for another). It never replaces labels you checked. No trained model yet (a
   first dataset): skip it and draw the water and ropes on the Labels page.
@@ -105,18 +111,50 @@ python -m pool_segmentation.labeling status                   # how many frames 
 | Editor | The frame with the water (blue) and ropes (orange) drawn on top. A tooltip next to the mouse names the class under it, as the training mask will have it (Lane rope 2, Water, Other; over a corner also what dragging it does). Corners: squares for water, circles for ropes; drag one to move it. Click a rope or water area to select it; the selected area shows + handles on its edges to add a corner. Drag on the frame to move it, mouse wheel to zoom |
 | Tools | + Rope (R), + Water (W): click dots around the area. Each dot connects to the last, and from the third dot on the area fills in (the closing edge dashed); nothing follows the mouse. A drag moves the frame meanwhile (a click without moving is a dot). Click the first dot, double-click or press Enter to finish; Backspace (or Z) removes the last dot, Esc cancels. A click beyond the frame puts the dot on its edge. A new rope is added as drawn; new water is merged into the water and the outlines are simplified again on the server (the fast fix for a swimmer cut out of the pool). Too much water (deck marked as water): move or delete corners. Delete (the selected corner, rope or water area), Undo / Redo (Z / Shift+Z) |
 | Save | Save (S) and Save & next (A). The status is set from the shapes: `accepted` if they are still the model's, `fixed` if you changed them. ← / → open the previous / next frame and save changes first. An area still being drawn (3 dots or more) is finished before saving or leaving the frame: what is on screen is saved |
+| Remove frame | For a frame not worth training on (an empty pool, a near copy of another): after a confirmation, its image, labels and mask are deleted and its name goes to `removed.json`, so picking frames from its video again skips it. The next frame opens |
+| Address | `?frame=<name>` opens that frame, `&filter=todo` (or `fixed`, `accepted`) sets the frame list's filter; both follow what is open, so a reload or a shared link shows the same |
 
-Other apps can show the page too, under a path of their own: `app.mount("/labels", create_app(labels_dir, home=("← Videos",
-"/")))` (`pool_segmentation/app/server.py`); `home` adds a link back to that app. The page uses relative links only, so
-it works at the root and under such a path. swim-analytics shows it this way at `/labels/`.
+## The Add videos page (`add`, next to the Labels page)
+
+Adds frames of new videos to the dataset without the command line: what `pick` and `auto` do, for the ticked videos.
+Linked from the Labels page (**+ Add videos**); swim-analytics shows it at `/labels/add`.
+
+| Part | What it does |
+|---|---|
+| Folder | Path field, parent folder, subfolders; opens the videos folder first (`--videos`, default `data/input`; swim-analytics: its input folder), then the last folder used (remembered in the browser) |
+| Videos | One row each (.mov, .mp4, .m4v, .avi, .mkv): the first frame, length, frames, size, how many of its frames are in the dataset (by name: `<video name>_<frame index>`) and how many new frames the sample rate picks. A click on the row ticks it |
+| Settings | One frame every _n_ s and at most _m_ per video (defaults 2 s and 25, as `pick`; remembered in the browser): the new frames of each video are counted again as you type. First labels: the newest trained model (default), an older training run, or none (frames without labels, to draw by hand). The runs come from `--models` (default `data/models/pool`) |
+| Add to dataset | Starts the job on the server: pick the frames of each video, then the model labels the frames of these videos that have no labels yet (the new ones, and any an earlier, cancelled job left without). One job at a time; it runs on when the page is closed, and the page shows it again when opened. Progress (frames read, model loading, frames labeled, time left) and Cancel: what was added and labeled so far stays |
+| When done | What was added and labeled, and **Check the new frames**: the Labels page with the first new frame open and only the frames not checked listed |
+
+The model is loaded (torch imported) only when a job labels frames, so the pages still start without torch. Frames
+already in the dataset or removed from it are never picked again: add a video again with a shorter step for more of
+its frames. The video path in `frames.json` is relative to the folder the server runs in when the video is inside it
+(as `pick data/input/...` records it), else absolute.
+
+## In another app, API
+
+Other apps can show the pages too, under a path of their own: `app.mount("/labels", create_app(labels_dir,
+home=("← Videos", "/"), models_dir=..., videos_dir=...))` (`pool_segmentation/app/server.py`); `home` adds a link
+back to that app, `models_dir` (default `data/models/pool`) and `videos_dir` (default `data/input`, else the current
+folder) are for the Add videos page. The pages use relative links only, so they work at the root and under such a
+path. swim-analytics shows them this way at `/labels/` and `/labels/add`.
 
 API (`pool_segmentation/app/server.py`): `GET /api/labels` (frames, statuses, the link back), `GET /api/labels/<name>` (the frame and its labels),
 `GET /api/labels/<name>/image`, `PUT /api/labels/<name>` (water, ropes; checked against the label format; the status
 is set from the shapes, the frame's video, index and size come from the dataset, not the page), `POST /api/labels/<name>/water` (+ Water: the
-water polygons with an area merged in; nothing saved).
+water polygons with an area merged in; nothing saved), `DELETE /api/labels/<name>` (remove the frame).
+
+Add videos (`pool_segmentation/app/add_videos.py`): `GET /api/add` (start folder, training runs newest first, default
+sample rate, the job running or last run), `GET /api/add/folder?path=&every_seconds=&max_per_video=` (subfolders,
+videos with their frames in the dataset and the new ones), `GET /api/add/thumbnail?path=`, `POST /api/add` (videos as
+absolute paths, `every_seconds`, `max_per_video`, `model`: a run, `latest` or null; 409 while a job runs),
+`GET /api/add/job`, `POST /api/add/job/cancel`.
 
 ## Next
 
+- A Train button on the Add videos page (training takes minutes: its own progress), to close the loop in the browser.
+- A preview of the frames a video gives before adding them, to untick near copies (a fixed camera's frames look alike).
 - Train the model: `docs/model.md` (water first; training reads the checked labels directly, with the same
   `rasterize()` as `masks`).
 - Ropes as a third class of the model (then `auto` labels them too), then as lines per frame (swim-analytics: the

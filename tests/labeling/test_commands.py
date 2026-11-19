@@ -4,7 +4,7 @@ import pytest
 
 from pool_segmentation.labeling.commands import auto_label, pick, write_masks
 from pool_segmentation.labeling.dataset import Dataset
-from pool_segmentation.labeling.frames import pick_indices
+from pool_segmentation.labeling.frames import add_video_frames, pick_indices
 from pool_segmentation.labeling.labels import FrameLabels
 
 
@@ -37,6 +37,39 @@ def test_pick_saves_frames_once(tmp_path, make_video):
     frame = dataset.frame("IMG_1_000045")
     assert (frame.video, frame.frame_idx, frame.width, frame.height) == (str(video), 45, 64, 48)
     assert cv2.imread(str(dataset.image_path("IMG_1_000045"))).shape == (48, 64, 3)
+
+
+def test_pick_skips_removed_frames(tmp_path, make_video):
+    video = make_video(tmp_path / "input" / "IMG_1.mp4", frames=120)
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [video], every_seconds=1.0, max_per_video=25)
+
+    dataset.remove_frame("IMG_1_000045")
+
+    assert pick(dataset, [video], every_seconds=1.0, max_per_video=25) == []  # not picked again
+    assert pick(dataset, [video], every_seconds=0.5, max_per_video=25) == [  # a shorter step: the frames between
+        "IMG_1_000007", "IMG_1_000022", "IMG_1_000037", "IMG_1_000052", "IMG_1_000067", "IMG_1_000082", "IMG_1_000097",
+        "IMG_1_000112"]
+    assert "IMG_1_000045" not in {f.name for f in dataset.frames()}
+
+
+def test_picking_stopped_halfway_keeps_the_frames_saved_so_far(tmp_path, make_video):
+    video = make_video(tmp_path / "input" / "IMG_1.mp4", frames=120)
+    dataset = Dataset(tmp_path / "labels")
+    seen = []
+
+    def stop_at_frame_50(done, total):
+        seen.append((done, total))
+        if done == 50:
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        add_video_frames(dataset, video, 1.0, 25, progress=stop_at_frame_50)
+
+    assert seen[0] == (1, 106) and seen[-1] == (50, 106)  # frames read, of those up to the last one picked
+    assert [f.name for f in dataset.frames()] == ["IMG_1_000015", "IMG_1_000045"]
+    assert sorted(p.name for p in dataset.images.iterdir()) == ["IMG_1_000015.jpg", "IMG_1_000045.jpg"]
+    assert add_video_frames(dataset, video, 1.0, 25) == ["IMG_1_000075", "IMG_1_000105"]  # the rest, next time
 
 
 def test_auto_labels_new_frames_and_never_replaces_checked_labels(tmp_path, make_video):
@@ -73,6 +106,36 @@ def test_auto_keeps_labels_checked_while_it_runs(tmp_path, make_video):
 
     assert auto_label(dataset, labeler=CheckedMeanwhile()) == 1
     assert dataset.labels("IMG_1_000045") == by_hand
+
+
+def test_auto_labels_only_the_frames_asked_for_and_reports_progress(tmp_path, make_video):
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [make_video(tmp_path / "IMG_1.mp4", frames=60), make_video(tmp_path / "IMG_2.mp4", frames=60)],
+         every_seconds=1.0, max_per_video=25)
+    steps = []
+
+    assert auto_label(dataset, labeler=FakeLabeler(), only={"IMG_2_000015", "IMG_2_000045"},
+                      progress=lambda done, total: steps.append((done, total))) == 2
+
+    assert steps == [(1, 2), (2, 2)]
+    assert dataset.status_counts() == {"no labels": 2, "auto": 2, "fixed": 0, "accepted": 0}
+    assert dataset.labels("IMG_1_000015") is None
+
+
+def test_auto_skips_frames_removed_while_it_runs(tmp_path, make_video):
+    dataset = Dataset(tmp_path / "labels")
+    pick(dataset, [make_video(tmp_path / "IMG_1.mp4", frames=90)], every_seconds=1.0, max_per_video=25)
+
+    class RemovedMeanwhile(FakeLabeler):  # frames removed on the Labels page while the model labels the first
+        def label(self, image):
+            if self.calls == 0:
+                dataset.remove_frame("IMG_1_000015")  # the one being labeled
+                dataset.remove_frame("IMG_1_000075")  # one still to come
+            return super().label(image)
+
+    assert auto_label(dataset, labeler=RemovedMeanwhile()) == 1
+    assert [f.name for f in dataset.frames()] == ["IMG_1_000045"]
+    assert sorted(p.name for p in dataset.labels_dir.iterdir()) == ["IMG_1_000045.json"]  # no labels of removed frames
 
 
 def test_masks_only_for_checked_frames(tmp_path, make_video):

@@ -35,6 +35,8 @@ const state = {
   filter: "all",
 };
 
+const FILTERS = ["all", "todo", "fixed", "accepted"];
+
 const shapesJSON = (shapes) => JSON.stringify(shapes);
 const changed = () => state.shapes && shapesJSON(state.shapes) !== state.saved;
 const isChecked = (status) => status === "fixed" || status === "accepted";
@@ -49,18 +51,34 @@ async function main() {
     // Shown inside another app (e.g. swim-analytics): a link back to it
     Object.assign($("home"), { textContent: listing.home.text, href: listing.home.url, hidden: false });
   }
+  $("dataset-dir").textContent = listing.dataset;
   if (!state.frames.length) {
-    $("labeling").hidden = true;
-    $("no-dataset").hidden = false;
-    $("dataset-dir").textContent = listing.dataset;
+    showNoFrames();
     return;
   }
   setupControls();
   setupCanvas();
-  const fromUrl = new URLSearchParams(location.search).get("frame");
+  const params = new URLSearchParams(location.search);
+  // ?filter=todo: e.g. from the Add videos page, to check the new frames
+  if (FILTERS.includes(params.get("filter"))) state.filter = $("filter").value = params.get("filter");
+  const fromUrl = params.get("frame");
   const first = state.frames.find((f) => f.name === fromUrl) ?? state.frames.find((f) => !isChecked(f.status)) ?? state.frames[0];
   renderList();
   await openFrame(first.name);
+}
+
+function showNoFrames() {
+  $("labeling").hidden = true;
+  $("frame-name").textContent = "";
+  $("unsaved").hidden = true;
+  $("no-dataset").hidden = false;
+}
+
+// The open frame and the filter, in the address: a reload or a shared link opens the same
+function updateUrl() {
+  const query = new URLSearchParams({ frame: state.frame.name });
+  if (state.filter !== "all") query.set("filter", state.filter);
+  history.replaceState(null, "", `?${query}`);
 }
 
 async function openFrame(name) {
@@ -77,7 +95,7 @@ async function openFrame(name) {
   state.undo = [];
   state.redo = [];
   setMode("edit");
-  history.replaceState(null, "", `?frame=${encodeURIComponent(name)}`);
+  updateUrl();
   document.title = `${name} · Labels · pool-segmentation`;
   fit();
   updatePanel();
@@ -118,6 +136,29 @@ function neighbour(delta) {
   return list[k + delta] ?? null;
 }
 
+// Remove the open frame from the dataset (its image, labels and mask; picking frames again skips it), then open the
+// next one. Its unsaved changes go with it.
+async function removeFrame() {
+  const name = state.frame.name;
+  if (!confirm(`Remove ${name} from the dataset?\n\nIts image and labels are deleted, and picking frames from its video again skips it.`)) return;
+  try {
+    await finishEditing();
+    const next = neighbour(1) ?? neighbour(-1) ?? state.frames.find((f) => f.name !== name);
+    await requestJSON(`api/labels/${encodeURIComponent(name)}`, {}, "DELETE");
+    state.frames = state.frames.filter((f) => f.name !== name);
+    state.saved = shapesJSON(state.shapes); // nothing left to save
+    hideError();
+    if (!next) {
+      showNoFrames();
+      return;
+    }
+    await openFrame(next.name);
+    $("message").textContent = `Removed ${name}.`;
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Frame list and panel
 
@@ -156,7 +197,9 @@ function setupControls() {
   $("filter").addEventListener("change", (e) => {
     state.filter = e.target.value;
     renderList();
+    updateUrl();
   });
+  $("remove").addEventListener("click", removeFrame);
   $("save").addEventListener("click", () => save().catch((e) => showError(e.message)));
   $("accept").addEventListener("click", saveAndNext);
   $("add-rope").addEventListener("click", () => setMode("add-rope"));
