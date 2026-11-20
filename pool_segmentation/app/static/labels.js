@@ -231,6 +231,12 @@ function setupControls() {
       },
     };
     if (command && key !== "z") return; // leave the browser's own shortcuts alone
+    if (e.shiftKey && (key === "delete" || key === "backspace")) {
+      // Shift+Delete: the whole frame (Delete alone: the selected corner or area); it asks first
+      e.preventDefault();
+      removeFrame();
+      return;
+    }
     if (actions[key]) {
       e.preventDefault();
       actions[key]();

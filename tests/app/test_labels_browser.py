@@ -149,9 +149,11 @@ class Chrome:
             value = self.js(expression)
         return value
 
-    def key(self, key: str, code: int) -> None:
+    def key(self, key: str, code: int, modifiers: int = 0) -> None:
+        """Press a key; `modifiers`: 8 = Shift (DevTools protocol bit flags)."""
         for event in ("rawKeyDown", "keyUp"):
-            self.cdp("Input.dispatchKeyEvent", type=event, key=key, code=key, windowsVirtualKeyCode=code)
+            self.cdp("Input.dispatchKeyEvent", type=event, key=key, code=key, windowsVirtualKeyCode=code,
+                     modifiers=modifiers)
 
 
 @pytest.fixture(scope="module")
@@ -360,6 +362,16 @@ def test_add_a_video_then_check_and_remove_its_frames(chrome, add_server):
         "clip_000045", "clip_000075", "clip_000105"]
     assert [f.name for f in dataset.frames()] == ["clip_000045", "clip_000075", "clip_000105"]
     assert dataset.removed() == {"clip_000015"}
+
+    # Shift+Backspace (Shift+⌫ on a Mac) removes the frame too, after asking; answered "no", nothing happens
+    js("window.confirm = () => false")
+    chrome.key("Backspace", 8, modifiers=8)
+    assert js("window.__labels.frame()") == "clip_000045" and len(dataset.frames()) == 3
+    js("window.confirm = () => true")
+    chrome.key("Backspace", 8, modifiers=8)
+    assert chrome.wait_for("window.__labels.frame()", lambda name: name == "clip_000075") == "clip_000075"
+    assert [f.name for f in dataset.frames()] == ["clip_000075", "clip_000105"]
+    assert dataset.removed() == {"clip_000015", "clip_000045"}
 
 
 def test_choose_a_video_file_or_open_one_by_its_path(chrome, add_server, tmp_path):
