@@ -31,7 +31,6 @@ const state = {
   mouse: null, // last mouse position over the canvas (screen)
   drag: null, // {type: "pan" | "corner", ...}
   undo: [],
-  redo: [],
   filter: "all",
 };
 
@@ -93,7 +92,6 @@ async function openFrame(name) {
   state.saved = shapesJSON(state.shapes);
   state.selection = null;
   state.undo = [];
-  state.redo = [];
   setMode("edit");
   updateUrl();
   document.title = `${name} · Labels · pool-segmentation`;
@@ -188,7 +186,6 @@ function updatePanel() {
   $("status").className = `status ${isChecked(state.status) ? "ok" : "warn"}`;
   $("unsaved").hidden = !changed();
   $("undo").disabled = !state.undo.length;
-  $("redo").disabled = !state.redo.length;
   $("delete").disabled = !state.selection;
   $("shape-counts").textContent = `${state.shapes.water.length} water area(s), ${state.shapes.ropes.length} rope(s)`;
 }
@@ -206,7 +203,6 @@ function setupControls() {
   $("add-water").addEventListener("click", () => setMode("add-water"));
   $("delete").addEventListener("click", deleteSelection);
   $("undo").addEventListener("click", undo);
-  $("redo").addEventListener("click", redo);
   for (const button of document.querySelectorAll(".label-panel button")) button.addEventListener("click", () => button.blur());
 
   document.addEventListener("keydown", (e) => {
@@ -218,8 +214,8 @@ function setupControls() {
       arrowright: () => neighbour(1) && go(neighbour(1).name),
       a: saveAndNext,
       s: () => save().catch((err) => showError(err.message)),
-      z: () => (DRAW_MODES.includes(state.mode) ? deleteKey() : e.shiftKey ? redo() : undo()), // while adding: the last dot
-      y: redo,
+      // While adding: the last dot. Shift+Z does nothing (no redo: it would surprise as a second undo)
+      z: () => (DRAW_MODES.includes(state.mode) ? deleteKey() : e.shiftKey ? null : undo()),
       r: () => setMode("add-rope"),
       w: () => setMode("add-water"),
       f: fit,
@@ -260,7 +256,6 @@ async function saveAndNext() {
 
 function edit(change) {
   state.undo.push(shapesJSON(state.shapes));
-  state.redo = [];
   change();
   updatePanel();
   draw();
@@ -268,17 +263,7 @@ function edit(change) {
 
 function undo() {
   if (!state.undo.length) return;
-  state.redo.push(shapesJSON(state.shapes));
   state.shapes = JSON.parse(state.undo.pop());
-  state.selection = null;
-  updatePanel();
-  draw();
-}
-
-function redo() {
-  if (!state.redo.length) return;
-  state.undo.push(shapesJSON(state.shapes));
-  state.shapes = JSON.parse(state.redo.pop());
   state.selection = null;
   updatePanel();
   draw();
@@ -640,7 +625,6 @@ function setupCanvas() {
     } else if (d.moved) {
       // The whole drag is one step of undo
       state.undo.push(d.before);
-      state.redo = [];
     }
     updatePanel();
     draw();

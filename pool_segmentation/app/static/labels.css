@@ -218,7 +218,6 @@ a.btn-primary { display: inline-block; text-decoration: none; }
 .tool-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
 .tool-buttons .btn-secondary { padding: 5px 8px; font-size: 13px; text-align: center; }
 .tool-buttons .btn-secondary.active { border-color: var(--accent); color: var(--accent); }
-.tool-buttons #delete { grid-column: 1 / -1; }
 .shape-counts { margin: 8px 0 0; font-size: 12px; }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; font-size: 12px; }
 .keys dt { color: var(--muted); }
