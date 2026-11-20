@@ -1,6 +1,6 @@
 [project]
 name = "pool-segmentation"
-version = "0.1.0"  # a release: bump it, then push the tag v<version> (CLAUDE.md, "Releasing")
+version = "0.2.0"  # a release: bump it, then push the tag v<version> (CLAUDE.md, "Releasing")
 description = "Find a swimming pool's water in video frames, and make the training data for it"
 readme = "README.md"
 license = "MIT"
