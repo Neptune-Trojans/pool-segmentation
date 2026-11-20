@@ -49,10 +49,8 @@ sample rate you choose, and lets your newest trained model label them (`--models
 folders).
 
 Without a trained model of your own, step 2 uses the published model (or skip it and draw the water and ropes on
-the Labels page). `python -m pool_segmentation.model publish` uploads your newest run to the Hub (maintainers:
-`HF_TOKEN` in `.env`). About 100
-checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After that, each round's model
-labels the next frames' water, and you only fix it and draw the ropes. Details:
+the Labels page). About 100 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After
+that, each round's model labels the next frames' water, and you only fix it and draw the ropes. Details:
 [docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how the model's first labels are made, the Labels page) and
 [docs/model.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/model.md) (network, training, results).
 
@@ -65,6 +63,49 @@ app.mount("/labels", create_app("data/labels/pool", home=("← Videos", "/"),
                                 models_dir="data/models/pool", videos_dir="data/input"))
 ```
 
+## Publish new weights (maintainers)
+
+The published model on the Hugging Face Hub,
+[nlateralus/pool-segmentation](https://huggingface.co/nlateralus/pool-segmentation), is what every install uses when
+it has no training run of its own. To replace it with a newer one, in the repo folder:
+
+1. **Train, and check the run.** Training prints the validation water IoU and the worst frames, and the run's `val/`
+   pictures show where the model is wrong. Compare with the published version (its numbers are on the model page and
+   in the "Published model" table of [docs/model.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/model.md)),
+   and publish only a run that is at least as good.
+
+   ```bash
+   .venv/bin/python -m pool_segmentation.model train
+   ```
+
+2. **Put a Hugging Face token in `.env`.** It needs write access to `nlateralus`
+   ([create one](https://huggingface.co/settings/tokens)). `.env` is git-ignored: never commit the token. Instead of
+   `.env`, `HF_TOKEN` in the environment or `hf auth login` work too.
+
+   ```
+   HF_TOKEN=hf_...
+   ```
+
+3. **Publish.** The newest run in `data/models/pool/`, or a given one:
+
+   ```bash
+   .venv/bin/python -m pool_segmentation.model publish                    # the newest run
+   .venv/bin/python -m pool_segmentation.model publish 20261119-231345    # a given run
+   ```
+
+   This uploads `model.safetensors` (the weights only), `config.json` and the model card as the repo's newest
+   version, tagged with the run's name. The run's `val/` pictures and the training frames are never uploaded: they
+   show real people.
+
+4. **Record it.** Add a row to the "Published model" table in docs/model.md, and commit.
+
+After that, every install gets the new weights the next time it loads the model while online: no new PyPI release is
+needed. Installs that pinned a version (`find_model("hub:<run>")`) keep theirs. An app with training runs of its own
+in its `data/models/pool/` keeps using its newest local run: copy the new run there too.
+
+**Roll back** by publishing an earlier run again (`publish <run>`): it becomes the newest version again. Its run
+folder must still be in `data/models/pool/`.
+
 ## Layout
 
 ```
@@ -72,7 +113,7 @@ pool_segmentation/
   __init__.py      # PoolModel, find_model, water_polygons
   polygons.py      # water mask -> outline polygons
   video.py         # read a video's frames
-  model/           # the network: network.py, data.py, train.py, predict.py, runs.py (python -m pool_segmentation.model)
+  model/           # the network: network.py, data.py, train.py, predict.py, runs.py, hub.py (python -m pool_segmentation.model)
   labeling/        # training data: frames, labels, the model's first labels, shapes (python -m pool_segmentation.labeling)
   app/             # the Labels and Add videos pages: server.py, add_videos.py + static/ (python -m pool_segmentation.app)
 docs/              # model.md, labeling.md
