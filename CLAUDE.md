@@ -26,6 +26,8 @@ it.
   Labels page). Keep them up to date
 - `pool_segmentation/model/`: the network (`python -m pool_segmentation.model train`); `labeling/`: training data
   (`python -m pool_segmentation.labeling`); `app/`: the Labels and Add videos pages (`python -m pool_segmentation.app`)
+- `scripts/`: repo tools, not in the package (`fetch_videos.py`: videos from YouTube searches, needs yt-dlp, imported
+  only inside its search and download functions)
 - Import torch only where a model is needed: `import pool_segmentation`, the labeling commands and the Labels page
   start without it (`PoolModel` is loaded on first use; `tests/test_package.py` checks this)
 - The Labels and Add videos pages use relative links only (`static/...`, `api/...`): they run on their own at `/` and
@@ -41,6 +43,8 @@ it.
   `-m "not browser"`. Run it after changing `pool_segmentation/app/static/`
 - Tests that train use tiny frames, the CPU and `pretrained=False` (no weight download); tests never load a trained model (a stand-in or an untrained one)
 - Write test outputs to a temp folder, never to `data/labels/` (checked labels are hand work) or `data/models/`
+- Tests never reach YouTube: `tests/scripts/test_fetch_videos.py` replaces the search and the download with
+  stand-ins (no yt-dlp needed, as in CI)
 - Tests never reach the Hugging Face Hub: `tests/conftest.py` makes downloading and publishing fail as offline;
   tests of the published model put stand-ins in place (`tests/model/test_hub.py`)
 

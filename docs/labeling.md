@@ -133,6 +133,35 @@ already in the dataset or removed from it are never picked again: add a video ag
 its frames. The video path in `frames.json` is relative to the folder the server runs in when the video is inside it
 (as `pick data/input/...` records it), else absolute.
 
+## Videos from the web (`scripts/fetch_videos.py`)
+
+_Added 2026-11-20._ More pools, cameras and light than our own videos: search terms in, videos out, then the usual
+steps (Add videos page or `pick`). A repo script, not part of the package; it needs yt-dlp
+(`.venv/bin/pip install "yt-dlp[default]"`) and, for YouTube, Node.js or Deno.
+
+```bash
+.venv/bin/python scripts/fetch_videos.py                                    # the default search terms, 10 new videos
+.venv/bin/python scripts/fetch_videos.py "swim meet 50m" "lap swimming pool" --max 20
+.venv/bin/python scripts/fetch_videos.py --list "swimming training lanes"   # only show what it would download
+```
+
+- **Search**: YouTube, through yt-dlp (no API key). Google's search API is closed to new users (shut down on
+  2027-01-01), yt-dlp's Google video search returns nothing (2026-11-20), and Brave's search API is paid; a whole-web
+  engine can be added later. Each term's results take turns, so every term gets videos.
+- **Kept**: 10 s to 15 min (`--min-seconds`, `--max-seconds`), filmed landscape (Shorts and upright videos skipped,
+  checked before downloading), not live, not downloaded before, titles without `underwater`, `drone`, `aerial`,
+  `animation`, `cartoon`, `minecraft`, `roblox` (`--exclude` adds words). Private, removed or age-restricted videos are
+  skipped.
+- **Downloaded**: the video stream only (no sound, so no ffmpeg), at most 1080p, H.264 first, to `data/input/web/`
+  (`--out`) as `yt-<id>.mp4`; a pause of 2–6 s between videos. `sources.json` there records each video's link, title,
+  channel, license, size, length and search term (saved after every video). A 40 s 1080p video: about 20 MB, a few
+  seconds.
+- **Then**: open `data/input/web/` on the Add videos page and tick the videos filmed like our camera (from the deck,
+  the water in view); search results include close-ups, TV graphics and crowds.
+- The videos belong to their owners, and YouTube's terms don't allow downloading or automated access: using them for
+  training is the user's call (it depends on the country, and on publishing the model trained on them). They stay in
+  `data/` (git-ignored). Not used: Pexels and Pixabay (their terms forbid automated collection for machine learning).
+
 ## In another app, API
 
 Other apps can show the pages too, under a path of their own: `app.mount("/labels", create_app(labels_dir,
