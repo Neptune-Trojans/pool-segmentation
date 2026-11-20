@@ -146,6 +146,15 @@ def test_page_and_its_files_use_relative_links(setup):
     assert client.get("/api/labels").json()["home"] is None  # on its own: no link back
 
 
+def test_the_browser_checks_for_newer_page_files(setup):
+    client, _ = setup
+
+    for url in ("/", "/static/labels.js", "/api/labels", "/api/labels/IMG_1_000010/image"):
+        assert client.get(url).headers["cache-control"] == "no-cache", url
+    assert client.get("/static/labels.js", headers={"if-none-match": client.get("/static/labels.js").headers["etag"]}
+                      ).status_code == 304  # unchanged: not sent again
+
+
 def test_another_app_can_show_the_page_under_its_own_path(setup):
     _, dataset = setup
     parent = FastAPI()

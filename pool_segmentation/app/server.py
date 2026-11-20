@@ -71,6 +71,14 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
     # own domain name at 127.0.0.1 (DNS rebinding)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
+    @app.middleware("http")
+    async def no_cache(request, call_next):
+        # The pages' files change with the package: the browser asks every time whether a file changed (an unchanged
+        # one is not sent again) instead of running an old copy for hours after an update
+        response = await call_next(request)
+        response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
     def labeled_frame(name: str):
         # Only names of picked frames are accepted, so a request can't reach any other file
         frame = dataset.frame(name)
