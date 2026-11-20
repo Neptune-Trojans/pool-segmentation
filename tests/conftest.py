@@ -1,8 +1,20 @@
-"""Shared by all tests: a small test video."""
+"""Shared by all tests: a small test video. No test reaches the Hugging Face Hub (the published model)."""
 
 import cv2
 import numpy as np
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_hub(monkeypatch):
+    """Every test: downloading or publishing on the Hugging Face Hub fails, as offline. Tests of the published model
+    put a stand-in in place of these."""
+
+    def offline(*args, **kwargs):
+        raise ConnectionError("no Hugging Face Hub in tests")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", offline)
+    monkeypatch.setattr("huggingface_hub.HfApi", offline)
 
 
 @pytest.fixture

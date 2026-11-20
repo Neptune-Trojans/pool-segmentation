@@ -23,7 +23,8 @@ from pool_segmentation.labeling.dataset import Dataset
 from pool_segmentation.labeling.frames import EVERY_SECONDS, MAX_PER_VIDEO
 from pool_segmentation.labeling.labels import CLASSES, FrameLabels
 from pool_segmentation.labeling.shapes import add_water
-from pool_segmentation.model.runs import MODELS_DIR, list_runs
+from pool_segmentation.model.hub import HUB_REPO
+from pool_segmentation.model.runs import HUB, MODELS_DIR, list_runs
 
 STATIC_DIR = Path(__file__).parent / "static"
 VIDEOS_DIR = Path("data/input")
@@ -51,7 +52,8 @@ class AddVideosRequest(BaseModel):
     videos: list[str]  # absolute paths, as the Add videos page lists them
     every_seconds: float = Field(EVERY_SECONDS, gt=0, le=MAX_EVERY_SECONDS)
     max_per_video: int = Field(MAX_PER_VIDEO, ge=1, le=MAX_FRAMES_PER_VIDEO)
-    model: str | None = "latest"  # the training run that makes the first labels, "latest", or None: none
+    model: str | None = "latest"  # the training run that makes the first labels, "latest", "hub" (the published
+    # model), or None: none
 
 
 def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str] | None = None,
@@ -146,10 +148,10 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
 
     @app.get("/api/add")
     def add_options() -> dict:
-        """What the Add videos page starts with: the folder to open, the trained models (newest first), the default
-        sample rate, the job running or last run."""
+        """What the Add videos page starts with: the folder to open, the trained models (newest first) and the
+        published one, the default sample rate, the job running or last run."""
         return {"folder": str(start_folder()), "upload_folder": str(videos_dir.resolve()),
-                "models": list_runs(models_dir), "models_dir": str(models_dir),
+                "models": list_runs(models_dir), "models_dir": str(models_dir), "hub": HUB_REPO,
                 "dataset": str(dataset.root), "defaults": {"every_seconds": EVERY_SECONDS, "max_per_video": MAX_PER_VIDEO},
                 "home": {"text": home[0], "url": home[1]} if home else None, "job": adder.status()}
 
@@ -226,8 +228,8 @@ def create_app(labels_dir: str | Path = "data/labels/pool", home: tuple[str, str
             raise HTTPException(400, f"Several videos named {', '.join(repeated)}: their frames would get the same "
                                      f"names. Add them one at a time")
         runs = list_runs(models_dir)
-        model = runs[0] if request.model == "latest" and runs else request.model
-        if model is not None and model not in runs:
+        model = (runs[0] if runs else HUB) if request.model == "latest" else request.model  # latest: else the published
+        if model is not None and model not in runs and model != HUB:
             raise HTTPException(400, f"No trained model '{request.model}' in {models_dir}")
         try:
             job = adder.start(videos, request.every_seconds, request.max_per_video, model)

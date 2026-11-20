@@ -325,8 +325,10 @@ def test_add_a_video_then_check_and_remove_its_frames(chrome, add_server):
     assert chrome.wait_for("window.__add?.listing()?.videos.length ?? 0", lambda n: n == 1) == 1
     assert js("document.querySelector('.video-file').textContent") == "clip.mp4"
     assert js("document.querySelector('.new-frames').textContent") == "+2 new frames"  # one every 2 s: 2 of 4 s
-    assert js("[...document.getElementById('model').options].map((o) => o.textContent)") == ["None: draw them by hand"]
-    assert "No trained model" in text("model-note")
+    assert js("[...document.getElementById('model').options].map((o) => o.textContent)") == [
+        "Published model (Hugging Face)", "None: draw them by hand"]  # no trained run here: the published model first
+    assert "No trained model" in text("model-note") and "the published model labels the frames" in text("model-note")
+    js("document.getElementById('model').value = ''")  # None: no download in the test
     assert js("document.getElementById('add').disabled")  # nothing selected
 
     # One frame every second: the new frames are counted again

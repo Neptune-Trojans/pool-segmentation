@@ -20,6 +20,8 @@ dependencies = [
     "opencv-python",
     "torch",
     "torchvision",  # the U-Net's ResNet encoder
+    "huggingface_hub",  # the published model: downloaded on first use (docs/model.md)
+    "safetensors",  # ... its weights' format
 ]
 
 [project.optional-dependencies]

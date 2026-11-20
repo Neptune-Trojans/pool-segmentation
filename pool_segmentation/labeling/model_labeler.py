@@ -7,6 +7,7 @@ import numpy as np
 
 from pool_segmentation.labeling import shapes
 from pool_segmentation.labeling.labels import Point
+from pool_segmentation.model.runs import model_name
 
 
 class ModelLabeler:
@@ -14,7 +15,7 @@ class ModelLabeler:
         from pool_segmentation.model.predict import PoolModel  # imports torch
 
         self.model = PoolModel.load(model_path, device)
-        self.name = f"pool-unet {Path(model_path).parent.name}"
+        self.name = f"pool-unet {model_name(model_path)}"  # a run's name, also for the published model
 
     def label(self, frame: np.ndarray) -> tuple[list[list[Point]], list[list[Point]]]:
         """(water polygons, rope polygons) of a BGR frame."""

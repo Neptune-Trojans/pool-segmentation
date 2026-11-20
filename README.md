@@ -21,12 +21,16 @@ Extras: `app` the Labels page, `train` TensorBoard, `dev` the tests.
 ```python
 from pool_segmentation import PoolModel, find_model
 
-model = PoolModel.load(find_model())   # the newest training run in data/models/pool/ (or a path to a model.pt)
+model = PoolModel.load(find_model())   # your newest training run in data/models/pool/, else the published model
 classes = model.predict(frame)         # BGR frame -> class per pixel: 0 other, 1 water
 water = model.water(frame)             # the water's outline: one polygon [(x, y), ...] per piece of water
 ```
 
-No trained weights are published yet: train your own (below).
+The published model is on the Hugging Face Hub:
+[nlateralus/pool-segmentation](https://huggingface.co/nlateralus/pool-segmentation) (MIT). Without a training run of
+your own, `find_model()` downloads it the first time and keeps it in `~/.cache/huggingface`; when online, it gets the
+newest published version. A given version: `find_model("hub:20261119-231345")` (versions are tagged with their
+training run). Your own frames train it further for your pool (below).
 
 ## Make training data and train
 
@@ -34,7 +38,7 @@ Run these in the folder that holds your data; paths are relative to it (`data/la
 
 ```bash
 python -m pool_segmentation.labeling pick data/input/*.MOV   # 1. pick frames: one every 2 s, at most 25 per video
-python -m pool_segmentation.labeling auto                     # 2. first labels (water) from your newest trained model
+python -m pool_segmentation.labeling auto                     # 2. first labels (water) from the newest model
 python -m pool_segmentation.app                               # 3. check and fix them: http://127.0.0.1:8001
 python -m pool_segmentation.model train                       # 4. train on the checked frames (about 5 min, M4 Pro)
 ```
@@ -44,7 +48,9 @@ the videos in a folder (or takes video files you choose or drop on it), picks fr
 sample rate you choose, and lets your newest trained model label them (`--models`, `--videos` to point it at your
 folders).
 
-The first time there is no trained model: skip step 2 and draw the water and ropes on the Labels page. About 100
+Without a trained model of your own, step 2 uses the published model (or skip it and draw the water and ropes on
+the Labels page). `python -m pool_segmentation.model publish` uploads your newest run to the Hub (maintainers:
+`HF_TOKEN` in `.env`). About 100
 checked frames are enough to start: 91 frames gave a validation water IoU of 0.996. After that, each round's model
 labels the next frames' water, and you only fix it and draw the ropes. Details:
 [docs/labeling.md](https://github.com/Neptune-Trojans/pool-segmentation/blob/main/docs/labeling.md) (classes, how the model's first labels are made, the Labels page) and

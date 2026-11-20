@@ -213,6 +213,24 @@ def test_add_with_another_model_or_none(setup):
     assert len(labelers) == 1  # no model loaded for None
 
 
+def test_the_published_model_labels_when_chosen_or_when_there_is_no_trained_run(setup, tmp_path, monkeypatch):
+    client, dataset, videos, labelers = setup
+    assert client.get("/api/add").json()["hub"] == "nlateralus/pool-segmentation"
+
+    client.post("/api/add", json={"videos": [str(videos / "IMG_1.mp4")], "every_seconds": 1, "model": "hub"})
+    assert wait_for_job(client)["model"] == "hub"
+    assert dataset.labels("IMG_1_000015").source == "pool-unet hub"  # the stand-in model's name
+
+    # No trained run here: "latest" is the published model
+    monkeypatch.setattr("pool_segmentation.labeling.commands.create_labeler",
+                        lambda model, models_dir: labelers.append(model) or FakeLabeler(f"pool-unet {model}"))
+    empty = TestClient(create_app(tmp_path / "labels-2", models_dir=tmp_path / "no-runs", videos_dir=videos),
+                       base_url="http://127.0.0.1")
+    assert empty.get("/api/add").json()["models"] == []
+    empty.post("/api/add", json={"videos": [str(videos / "IMG_2.mp4")], "every_seconds": 1})
+    assert (wait_for_job(empty)["model"], labelers[-1]) == ("hub", "hub")
+
+
 def test_adding_a_video_again_adds_only_new_frames_and_labels_those_left_without(setup):
     client, dataset, videos, _ = setup
     client.post("/api/add", json={"videos": [str(videos / "IMG_1.mp4")], "every_seconds": 1, "model": None})

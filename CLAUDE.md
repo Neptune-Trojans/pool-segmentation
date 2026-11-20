@@ -41,6 +41,8 @@ it.
   `-m "not browser"`. Run it after changing `pool_segmentation/app/static/`
 - Tests that train use tiny frames, the CPU and `pretrained=False` (no weight download); tests never load a trained model (a stand-in or an untrained one)
 - Write test outputs to a temp folder, never to `data/labels/` (checked labels are hand work) or `data/models/`
+- Tests never reach the Hugging Face Hub: `tests/conftest.py` makes downloading and publishing fail as offline;
+  tests of the published model put stand-ins in place (`tests/model/test_hub.py`)
 
 ## Releasing (PyPI: `pip install pool-segmentation`)
 
@@ -50,6 +52,9 @@ it.
   matches the version, builds and publishes to PyPI (trusted publishing: no token in GitHub). Tag and push only when
   the user asks for a release
 - Check the package locally first: `python -m build` and `twine check --strict dist/*`
+- Model weights are published apart from the package, to the Hugging Face Hub (`nlateralus/pool-segmentation`,
+  `docs/model.md`): `python -m pool_segmentation.model publish [run]`, with `HF_TOKEN` in `.env` (git-ignored; never
+  print or commit it). Only when the user asks. Installs get new weights without a new release
 
 ## Workflow
 

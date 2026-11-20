@@ -86,8 +86,8 @@ python -m pool_segmentation.labeling status                   # how many frames 
 - `pick` skips frames already in the dataset, and frames removed from it, so it can be run again with more videos
   or `--every 1`.
 - `auto` labels only frames without labels (`--redo`: also those not checked yet, again), with the newest training
-  run in `data/models/pool/` (`--model <run>` for another). It never replaces labels you checked. No trained model yet (a
-  first dataset): skip it and draw the water and ropes on the Labels page.
+  run in `data/models/pool/` (`--model <run>` for another), else the published model (`--model hub`; `docs/model.md`).
+  It never replaces labels you checked. Or skip it and draw the water and ropes on the Labels page.
 - `masks` writes masks for the checked frames only (`--all`: also the unchecked ones) and removes masks of frames no
   longer checked, so `masks/` is exactly the training set.
 - Start with about 100 frames, train, look where the model fails, then add frames like those.
@@ -124,7 +124,7 @@ Linked from the Labels page (**+ Add videos**); swim-analytics shows it at `/lab
 | Folder | Path field, parent folder, subfolders; opens the videos folder first (`--videos`, default `data/input`), then the last folder used (remembered in the browser). The path field also takes a video's path: its folder opens with the video ticked |
 | Video files | **Choose files…**, or video files dropped anywhere on the page: copied to the videos folder (made on the first copy), which then opens with them ticked. Browsers don't tell the page where a chosen file is, so it is copied (a 567 MB video in under a second). A video already there with the same name and size is ticked, not copied again; a different one with the same name is refused (rename the file), as frame names come from the video name. Never replaces a file |
 | Videos | One row each (.mov, .mp4, .m4v, .avi, .mkv): the first frame, length, frames, size, how many of its frames are in the dataset (by name: `<video name>_<frame index>`) and how many new frames the sample rate picks. A click on the row ticks it |
-| Settings | One frame every _n_ s and at most _m_ per video (defaults 2 s and 25, as `pick`; remembered in the browser): the new frames of each video are counted again as you type. First labels: the newest trained model (default), an older training run, or none (frames without labels, to draw by hand). The runs come from `--models` (default `data/models/pool`) |
+| Settings | One frame every _n_ s and at most _m_ per video (defaults 2 s and 25, as `pick`; remembered in the browser): the new frames of each video are counted again as you type. First labels: the newest trained model (default), an older training run, the published model (Hugging Face; the default without a run here), or none (frames without labels, to draw by hand). The runs come from `--models` (default `data/models/pool`) |
 | Add to dataset | Starts the job on the server: pick the frames of each video, then the model labels the frames of these videos that have no labels yet (the new ones, and any an earlier, cancelled job left without). One job at a time; it runs on when the page is closed, and the page shows it again when opened. Progress (frames read, model loading, frames labeled, time left) and Cancel: what was added and labeled so far stays |
 | When done | What was added and labeled, and **Check the new frames**: the Labels page with the first new frame open and only the frames not checked listed |
 
@@ -152,7 +152,8 @@ videos with their frames in the dataset and the new ones; `path` a video: its fo
 `PUT /api/add/upload?name=` (the body: a video file, copied to the videos folder; 409 if a file has that name),
 `GET /api/add/thumbnail?path=`, `POST /api/add` (videos as
 absolute paths, `every_seconds`, `max_per_video`, `model`: a run, `latest` or null; 409 while a job runs),
-`GET /api/add/job`, `POST /api/add/job/cancel`.
+`GET /api/add/job`, `POST /api/add/job/cancel`. `model` can also be `hub` (the published model); `latest` without a
+training run is `hub`.
 
 ## Next
 

@@ -201,18 +201,22 @@ function runDate(run) {
   return m ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}` : run;
 }
 
+// The models that can label new frames: the training runs here (newest first, the default), the published model
+// (the default without a run here), none
 function buildModels(options) {
   const option = (value, text) => Object.assign(el("option", "", text), { value });
   const items = options.models.map((run, k) => option(run, k ? `Model of ${runDate(run)}` : `Newest model (${runDate(run)})`));
-  items.push(option("", "None: draw them by hand"));
+  items.push(option("hub", "Published model (Hugging Face)"), option("", "None: draw them by hand"));
   $("model").replaceChildren(...items);
-  $("model").title = `Training runs in ${options.models_dir}`;
+  $("model").title = `Training runs in ${options.models_dir}; the published model: huggingface.co/${options.hub}`;
   if (!options.models.length) {
-    $("model-note").textContent = `No trained model in ${options.models_dir} yet: the frames are added without labels, `
-      + "to draw on the Labels page.";
+    $("model-note").textContent = `No trained model in ${options.models_dir} yet: the published model labels the `
+      + `frames (huggingface.co/${options.hub}, downloaded the first time).`;
     $("model-note").hidden = false;
   }
 }
+
+const modelText = (model) => (model === "hub" ? "the published model" : `the model of ${runDate(model)}`);
 
 let reloadTimer = null;
 
@@ -436,13 +440,13 @@ function jobText(job) {
   if (job.state === "running") {
     if (job.cancel_requested) return "Cancelling…";
     if (job.step === "picking") return `Picking frames from ${job.video} (video ${job.videos_done + 1} of ${job.videos_total})${left}`;
-    if (job.step === "loading") return `Loading the model ${runDate(job.model)}…`;
+    if (job.step === "loading") return `Loading ${modelText(job.model)}…`;
     return `The model labels the water: ${job.done} of ${plural(job.total, "frame")}${left}`;
   }
   let added = job.added ? `${plural(job.added, "frame")} added` : "no new frames";
   if (job.added && !job.model) added += ", without labels: draw them on the Labels page";
-  else if (job.added && job.labeled === job.added) added += `, their water labeled by the model of ${runDate(job.model)}`;
-  else if (job.added) added += `, ${job.labeled} of them labeled by the model of ${runDate(job.model)}`;
+  else if (job.added && job.labeled === job.added) added += `, their water labeled by ${modelText(job.model)}`;
+  else if (job.added) added += `, ${job.labeled} of them labeled by ${modelText(job.model)}`;
   if (job.state === "done") return `Done: ${added}.`;
   if (job.state === "cancelled") return `Cancelled: ${added}.`;
   return `Adding failed: ${job.error}. So far: ${added}.`;

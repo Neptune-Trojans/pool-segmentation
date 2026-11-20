@@ -16,8 +16,9 @@ def test_public_api():
 
 @pytest.mark.parametrize("module", ["pool_segmentation", "pool_segmentation.labeling.commands", "pool_segmentation.app.server"])
 def test_tools_that_need_no_model_do_not_import_torch(module):
-    # torch takes seconds to import: the labeling commands and the Labels page must start without it
-    code = f"import sys, {module}; print('torch' in sys.modules)"
+    # torch takes seconds to import: the labeling commands and the Labels page must start without it (and without
+    # huggingface_hub: only when the published model is downloaded)
+    code = f"import sys, {module}; print('torch' in sys.modules, 'huggingface_hub' in sys.modules)"
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
 
-    assert result.stdout.strip() == "False"
+    assert result.stdout.strip() == "False False"

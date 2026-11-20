@@ -87,6 +87,7 @@ The run keeps the names of its training frames, so a model can be traced to its 
 python -m pool_segmentation.model train                       # defaults: 40 epochs, 1024x576, resnet18
 python -m pool_segmentation.model train --epochs 60 --encoder resnet34
 python -m pool_segmentation.model train --help                # all options
+python -m pool_segmentation.model publish                     # the newest run to the Hugging Face Hub (below)
 ```
 
 Using a model:
@@ -94,13 +95,37 @@ Using a model:
 ```python
 from pool_segmentation import PoolModel, find_model
 
-model = PoolModel.load(find_model())  # the newest run in data/models/pool/; or find_model("<run>"), or a path
+model = PoolModel.load(find_model())  # the newest run in data/models/pool/, else the published model;
+                                      # or find_model("<run>"), find_model("hub"), find_model("hub:<run>"), a path
 classes = model.predict(frame)        # BGR frame -> class number per pixel (0 other, 1 water), the frame's size
 water = model.water(frame)            # the water's outline: one polygon [(x, y), ...] per piece, holes filled
 ```
 
 `PoolModel` imports torch (on first use: `import pool_segmentation` alone doesn't). `water_polygons(mask)` turns any
 water mask into such outlines (3 px tolerance, pieces under 0.1% of the frame dropped).
+
+## Published model (Hugging Face Hub, `pool_segmentation/model/hub.py`)
+
+_Since 2026-11-20._ [nlateralus/pool-segmentation](https://huggingface.co/nlateralus/pool-segmentation): public, MIT
+(as the code). What a `pip install` uses when it has no training run of its own.
+
+- **Files**: `model.safetensors` (the network's weights only; no pickle, unlike `model.pt`), `config.json` (classes,
+  encoder, input size, the run, frame counts, validation IoU), `README.md` (the model card). The run's `val/`
+  pictures are never uploaded: they show real people. The weights hold no images.
+- **Versions**: each upload is the repo's newest commit, tagged with its training run's name.
+- **How the package gets it**: `find_model()` ("latest") takes the newest run in `data/models/pool/`; without one,
+  the published model, downloaded once (both files in one call, so they are the same version) into
+  `~/.cache/huggingface`. When online it checks for a newer published version, so new weights reach every install
+  without a new release; offline it uses the cached copy. `find_model("hub")` always takes the published one,
+  `find_model("hub:<run>")` a given version (pinned: results don't change when new weights are published).
+  `PoolModel.load()` reads both forms; `model.name` is the training run.
+- **Publish**: `python -m pool_segmentation.model publish [run]` (default: the newest run; `--repo` for another
+  repo). Needs a Hugging Face token with write access: `HF_TOKEN` in the environment or in `.env` (git-ignored),
+  else the one saved by `hf auth login`. Makes the repo (public) if new, uploads, tags.
+
+| Published | Run | Frames (training / validation) | Validation water IoU |
+|---|---|---|---|
+| 2026-11-20 | `20261119-231345` | 89 / 19, 9 videos | mean 0.996, worst 0.990 |
 
 ## Results
 
@@ -119,10 +144,18 @@ an M4 Pro.
 - Not tested yet: whole videos (motion blur, camera pointed at the floor), where the earlier models failed. The
   validation frames come from the same videos as the training frames.
 
+Retrained 2026-11-19 (`20261119-231345`, the first published model): 108 checked frames (89 training, 19
+validation), with frames of IMG_5198, a pool not in the first runs. On the same 19 validation frames:
+
+| Validation frames | 2026-11-16 model | 2026-11-19 model |
+|---|---|---|
+| The first pools (16) | mean 0.996, worst 0.993 | mean 0.996, worst 0.990 |
+| IMG_5198 (3) | mean 0.988, worst 0.977 | **mean 0.995, worst 0.990** |
+
 ## Next
 
 - Run it on whole videos and look at where it fails. Add frames like those (pick, auto, check), train again.
 - swim-analytics' `pool` stage runs the newest model on every frame (its `pool.model` setting: a run folder name,
-  or `latest`); its filtering drops people outside the water. On IMG_5198 (a pool not in the training frames) it
-  misses a beige-floored shallow area: frames from there would fix it.
+  or `latest`); its filtering drops people outside the water. On IMG_5198 (then a pool not in the training frames) it
+  missed a beige-floored shallow area: its frames are in the 2026-11-19 model (0.977 → 0.994 on the worst).
 - Lane ropes as a third class, for the lanes (joining broken tracks).
